@@ -65,23 +65,24 @@ Parameters:
 Resources:
 
   #VPC and Subnet
-  MyVPC:
-    Type: AWS::EC2::VPC
-    Properties:
-      CidrBlock: 10.0.0.0/16
-      EnableDnsSupport: true
-      EnableDnsHostnames: true
-      Tags:
-        - Key: Name
-          Value: !Ref VPCName
+    MyVPC:
+      Type: AWS::EC2::VPC
+      Properties:
+        CidrBlock: 10.0.0.0/16
+        EnableDnsSupport: true
+        EnableDnsHostnames: true
+        Tags:
+          - Key: Name
+            Value: !Ref VPCName
 
-  PublicSubnet:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref MyVPC
-      CidrBlock: 10.0.1.0/24
-      MapPublicIpOnLaunch: true
-      AvailabilityZone: !Select [ 0, !GetAZs "" ]
+
+    PublicSubnet:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref MyVPC
+        CidrBlock: 10.0.1.0/24
+        MapPublicIpOnLaunch: true
+        AvailabilityZone: !Select [ 0, !GetAZs "" ]
 
     PrivateSubnet1:
       Type: AWS::EC2::Subnet
@@ -159,180 +160,156 @@ Resources:
         AllocationId: !GetAtt ElasticIP.AllocationId
         SubnetId: !Ref PublicSubnet
 
-    RDSSecurityGroup:
+
+  ## S3 Bucket
+  # S3 Bucket for storing files
+    Bucket:
+      Type: AWS::S3::Bucket
+#      DependsOn:
+#        - BucketPermissionAccess
+      Properties:
+        BucketName: !Ref BucketName
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: false
+          BlockPublicPolicy: false
+          IgnorePublicAcls: false
+          RestrictPublicBuckets: false
+   
+    PublicAccessBucketPolicy:
+      Type: 'AWS::S3::BucketPolicy'
+      Properties:
+        Bucket: !Ref Bucket
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Sid: PublicReadGetObject
+              Effect: Allow
+              Principal: '*'
+              Action: 's3:GetObject'
+              Resource:
+                Fn::Sub: 'arn:aws:s3:::${Bucket}/*'
+
+    ## DynamoDB Tables
+    PatientSchema:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: patientSchema
+        AttributeDefinitions:
+          - AttributeName: patientId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: patientId
+            KeyType: HASH
+        ProvisionedThroughput:
+            ReadCapacityUnits: "1"
+            WriteCapacityUnits: "1"
+
+    DoctorSchema:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: doctorSchema
+        AttributeDefinitions:
+          - AttributeName: username
+            AttributeType: S
+        KeySchema:
+          - AttributeName: username
+            KeyType: HASH
+        ProvisionedThroughput:
+            ReadCapacityUnits: "1"
+            WriteCapacityUnits: "1"
+
+    AppointmentSchema:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: appointmentSchema
+        AttributeDefinitions:
+          - AttributeName: patientId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: patientId
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: "1"
+          WriteCapacityUnits: "1"
+
+    FeedbackSchema:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: feedbackSchema
+        AttributeDefinitions:
+          - AttributeName: feedbackId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: feedbackId
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: "1"
+          WriteCapacityUnits: "1"
+
+     ## SNS Topic for Blog Notifications
+    AppointmentNotificationTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: AppointmentNotificationTopic
+
+
+  ##Permissions
+
+  ##EC2 instance setup and configuration:
+   # Security Group allowing HTTPS access through port 4200
+    EC2SecurityGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
-        GroupDescription: Allow database access from EC2
+        GroupDescription: Allow SSH and HTTP access to EC2
         VpcId: !Ref MyVPC
         SecurityGroupIngress:
           - IpProtocol: tcp
-            FromPort: 3306
-            ToPort: 3306
-            SourceSecurityGroupId: !Ref EC2SecurityGroup
+            FromPort: 22
+            ToPort: 22
+            CidrIp: 0.0.0.0/0
+          - IpProtocol: tcp
+            FromPort: 8080
+            ToPort: 8080
+            CidrIp: 0.0.0.0/0
 
-    DBSubnetGroup:
-      Type: AWS::RDS::DBSubnetGroup
+    # EC2 instance definition
+    FrontendEC2Instance:
+      Type: AWS::EC2::Instance
       Properties:
-        DBSubnetGroupDescription: Subnets for RDS
-        SubnetIds:
-          - !Ref PrivateSubnet1
-          - !Ref PrivateSubnet2
-  ## S3 Bucket
-  # S3 Bucket for storing files
-  Bucket:
-    Type: AWS::S3::Bucket
-    DependsOn:
-      - BucketPermissionAccess
-    Properties:
-      BucketName: !Ref BucketName
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: false
-        BlockPublicPolicy: false
-        IgnorePublicAcls: false
-        RestrictPublicBuckets: false
-   
-  PublicAccessBucketPolicy:
-    Type: 'AWS::S3::BucketPolicy'
-    Properties:
-      Bucket: !Ref Bucket
-      PolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Sid: PublicReadGetObject
-            Effect: Allow
-            Principal: '*'
-            Action: 's3:GetObject'
-            Resource:
-              Fn::Sub: 'arn:aws:s3:::${Bucket}/*'
+        InstanceType: !Ref InstanceType
+        KeyName: !Ref 'KeyName'
+        ImageId: ami-012967cc5a8c9f891
+        SubnetId: !Ref PublicSubnet
+        SecurityGroupIds:
+          - !Ref EC2SecurityGroup
+        UserData:
+          Fn::Base64:
+            !Sub |
 
-  ## DynamoDB Tables
-  PatientSchema:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: patientSchema
-      AttributeDefinitions:
-        - AttributeName: patientId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: patientId
-          KeyType: HASH
-      ProvisionedThroughput:
-          ReadCapacityUnits: "1"
-          WriteCapacityUnits: "1"
+        Tags:
+        - Key: Name
+          Value: frontend-healthcare
 
-  DoctorSchema:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: doctorSchema
-      AttributeDefinitions:
-        - AttributeName: username
-          AttributeType: S
-      KeySchema:
-        - AttributeName: username
-          KeyType: HASH
-      ProvisionedThroughput:
-          ReadCapacityUnits: "1"
-          WriteCapacityUnits: "1"
+    BackendEC2Instance:
+      Type: AWS::EC2::Instance
+      Properties:
+        InstanceType: !Ref InstanceType
+        KeyName: !Ref 'KeyName'
+        ImageId: ami-012967cc5a8c9f891
+        SubnetId: !Ref PrivateSubnet1
+        SecurityGroupIds:
+          - !Ref EC2SecurityGroup
+        UserData:
+          Fn::Base64:
+            !Sub |
 
-  AppointmentSchema:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: appointmentSchema
-      AttributeDefinitions:
-        - AttributeName: patientId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: patientId
-          KeyType: HASH
-      ProvisionedThroughput:
-        ReadCapacityUnits: "1"
-        WriteCapacityUnits: "1"
-
-  FeedbackSchema:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: feedbackSchema
-      AttributeDefinitions:
-        - AttributeName: feedbackId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: feedbackId
-          KeyType: HASH
-      ProvisionedThroughput:
-        ReadCapacityUnits: "1"
-        WriteCapacityUnits: "1"
-
-   ## SNS Topic for Blog Notifications
-  AppontmentNotificationTopic:
-    Type: AWS::SNS::Topic
-    Properties:
-      TopicName: AppointmentNotificationTopic
-
-
-##Permissions
-
-##EC2 instance setup and configuration:
- # Security Group allowing HTTPS access through port 4200
-  EC2SecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Allow SSH and HTTP access to EC2
-      VpcId: !Ref MyVPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 22
-          ToPort: 22
-          CidrIp: 0.0.0.0/0
-        - IpProtocol: tcp
-          FromPort: 8080
-          ToPort: 8080
-          CidrIp: 0.0.0.0/0
-          
-  # EC2 instance definition
-  EC2Instance: 
-    Type: AWS::EC2::Instance
-    Properties:
-      InstanceType: !Ref InstanceType
-      KeyName: !Ref 'KeyName'
-      ImageId: ami-06e46074ae430fba6
-      SecurityGroups: 
-        - !Ref InstanceSecurityGroupPort
-        - !Ref InstanceSecurityGroupSSH
-        - !Ref InstanceSecurityGroupHTTP
-
-      UserData:
-        Fn::Base64:
-          !Sub |
-            #!/bin/bash
-            sudo su
-            yum update -y
-            yum install -y git curl
-            yum install -y gcc-c++ make
-            curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
-            export NVM_DIR="$HOME/.nvm"
-            source "$NVM_DIR/nvm.sh"
-            nvm install 18.19.0
-            nvm alias default 18.19.0
-            nvm use default
-            npm install -g @angular/cli
-            yum install -y git
-            git clone ${GitHubLink}
-            cd We-blog/
-            cd src/
-            cd environments/
-            echo "export const environment = { production: true, apiUrl: 'https://${APIGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'};" > environment.development.ts
-            echo "export const environment = { production: false, apiUrl: 'https://${APIGatewayRestApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}'};" > environment.ts
-            cd ../..
-            npm install
-            ng build --configuration=production
-            ng serve --port=4200 --host=0.0.0.0   
-      Tags:
-      - Key: Name
-        Value: we-blog-application
+        Tags:
+          - Key: Name
+            Value: backend-healthcare
 Outputs:
   BlogNotificationTopicArn:
-    Description: The ARN of the SNS Topic for blog notifications
-    Value: !Ref BlogNotificationTopic
+    Description: The ARN of the SNS Topic for healthcare notifications
+    Value: !Ref AppointmentNotificationTopic
 
   ApplicationURL:
     Description: The URL of the deployed application
@@ -340,6 +317,6 @@ Outputs:
       - ''
       - - 'http://'
         - !GetAtt
-          - EC2Instance
+          - FrontendEC2Instance
           - PublicDnsName
         - ':4200'
