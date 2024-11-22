@@ -115,7 +115,7 @@ Resources:
             Value: !Ref VPCName
 
 
-    PublicSubnet:
+    PublicSubnet1:
       Type: AWS::EC2::Subnet
       Properties:
         VpcId: !Ref MyVPC
@@ -123,18 +123,26 @@ Resources:
         MapPublicIpOnLaunch: true
         AvailabilityZone: !Select [ 0, !GetAZs "" ]
 
-    PrivateSubnet1:
+    PublicSubnet2:
       Type: AWS::EC2::Subnet
       Properties:
         VpcId: !Ref MyVPC
         CidrBlock: 10.0.2.0/24
+        MapPublicIpOnLaunch: true
+        AvailabilityZone: !Select [ 1, !GetAZs "" ]
+
+    PrivateSubnet1:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref MyVPC
+        CidrBlock: 10.0.3.0/24
         AvailabilityZone: !Select [ 0, !GetAZs "" ]
 
     PrivateSubnet2:
       Type: AWS::EC2::Subnet
       Properties:
         VpcId: !Ref MyVPC
-        CidrBlock: 10.0.3.0/24
+        CidrBlock: 10.0.4.0/24
         AvailabilityZone: !Select [ 1, !GetAZs "" ]
 
     InternetGateway:
@@ -161,7 +169,7 @@ Resources:
     PublicSubnetRouteTableAssociation:
       Type: AWS::EC2::SubnetRouteTableAssociation
       Properties:
-        SubnetId: !Ref PublicSubnet
+        SubnetId: !Ref PublicSubnet1
         RouteTableId: !Ref PublicRouteTable
 
     PrivateRouteTable:
@@ -197,7 +205,7 @@ Resources:
       Type: AWS::EC2::NatGateway
       Properties:
         AllocationId: !GetAtt ElasticIP.AllocationId
-        SubnetId: !Ref PublicSubnet
+        SubnetId: !Ref PublicSubnet1
 
 
   ## S3 Bucket
@@ -318,7 +326,7 @@ Resources:
         InstanceType: !Ref InstanceType
         KeyName: !Ref 'KeyName'
         ImageId: ami-012967cc5a8c9f891
-        SubnetId: !Ref PublicSubnet
+        SubnetId: !Ref PublicSubnet1
         SecurityGroupIds:
           - !Ref EC2SecurityGroup
         UserData:
@@ -329,7 +337,7 @@ Resources:
         - Key: Name
           Value: frontend-healthcare
 
-    BackendEC2Instance:
+    BackendEC2Instance1:
       Type: AWS::EC2::Instance
       Properties:
         InstanceType: !Ref InstanceType
@@ -344,7 +352,100 @@ Resources:
 
         Tags:
           - Key: Name
-            Value: backend-healthcare
+            Value: backend-healthcare1
+
+    BackendEC2Instance2:
+      Type: AWS::EC2::Instance
+      Properties:
+        InstanceType: !Ref InstanceType
+        KeyName: !Ref 'KeyName'
+        ImageId: ami-012967cc5a8c9f891
+        SubnetId: !Ref PrivateSubnet1
+        SecurityGroupIds:
+          - !Ref EC2SecurityGroup
+        UserData:
+          Fn::Base64:
+            !Sub |
+
+        Tags:
+          - Key: Name
+            Value: backend-healthcare2
+
+    BackendEC2Instance3:
+      Type: AWS::EC2::Instance
+      Properties:
+        InstanceType: !Ref InstanceType
+        KeyName: !Ref 'KeyName'
+        ImageId: ami-012967cc5a8c9f891
+        SubnetId: !Ref PrivateSubnet1
+        SecurityGroupIds:
+          - !Ref EC2SecurityGroup
+        UserData:
+          Fn::Base64:
+            !Sub |
+
+        Tags:
+          - Key: Name
+            Value: backend-healthcare3
+
+    ##Load Balancer Setup for backend
+  # Security Group for the Load Balancer
+    LoadBalancerSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Allow HTTP access for Load Balancer
+        VpcId: !Ref MyVPC
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 0.0.0.0/0
+
+  # Application Load Balancer
+    ApplicationLoadBalancer:
+      Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+      Properties:
+        Name: BackendALB
+        Scheme: internet-facing
+        Subnets:
+          - !Ref PublicSubnet1
+          - !Ref PublicSubnet2
+        SecurityGroups:
+          - !Ref LoadBalancerSecurityGroup
+        Type: application
+        Tags:
+          - Key: Name
+            Value: BackendLoadBalancer
+
+  # Target Group for Backend Instances
+    BackendTargetGroup:
+      Type: AWS::ElasticLoadBalancingV2::TargetGroup
+      Properties:
+        Name: BackendTargetGroup
+        Protocol: HTTP
+        Port: 8080
+        VpcId: !Ref MyVPC
+        TargetType: instance
+        HealthCheckProtocol: HTTP
+        HealthCheckPort: 8080
+        HealthCheckPath: /
+        Matcher:
+          HttpCode: 200
+        Targets:
+          - Id: !Ref BackendEC2Instance1
+          - Id: !Ref BackendEC2Instance2
+          - Id: !Ref BackendEC2Instance3
+
+  # Listener for the Application Load Balancer
+    ALBListener:
+      Type: AWS::ElasticLoadBalancingV2::Listener
+      Properties:
+        DefaultActions:
+          - Type: forward
+            TargetGroupArn: !Ref BackendTargetGroup
+        LoadBalancerArn: !Ref ApplicationLoadBalancer
+        Port: 80
+        Protocol: HTTP
 Outputs:
   BlogNotificationTopicArn:
     Description: The ARN of the SNS Topic for healthcare notifications
