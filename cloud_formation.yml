@@ -5,7 +5,7 @@ Parameters:
   # Prefix for resource names
   Prefix:
     Type: String
-    Default: Healthcare-Appointment
+    Default: healthcare-appointment
 
   # Name of Lambda function for inserting into DynamoDB
   emailSender:
@@ -64,7 +64,46 @@ Parameters:
 
 Resources:
 
-  #VPC and Subnet
+    # Cognito User Pool for user authentication
+    UserPool:
+      Type: 'AWS::Cognito::UserPool'
+      Properties:
+        UserPoolName: !Sub ${Prefix}-UserPool
+        UsernameAttributes:
+          - email
+        AutoVerifiedAttributes:
+          - email
+        UsernameConfiguration:
+          CaseSensitive: true
+        Schema:
+          - Name: email
+            AttributeDataType: String
+            Required: true
+            Mutable: true
+        VerificationMessageTemplate:
+          DefaultEmailOption: CONFIRM_WITH_LINK
+          EmailMessageByLink: 'Click the Verify Email link to verify your email address to Sign Up for Healtcare Appointment Booking. {##Verify Email##}'
+
+    # Client for accessing the Cognito User Pool
+    UserPoolClient:
+      Type: AWS::Cognito::UserPoolClient
+      Properties:
+        UserPoolId: !Ref UserPool
+        AccessTokenValidity: 1
+        SupportedIdentityProviders:
+          - COGNITO
+        TokenValidityUnits:
+          AccessToken: days
+
+    # Domain setup for the Cognito User Pool
+    UserPoolDomain:
+      Type: AWS::Cognito::UserPoolDomain
+      Properties:
+        Domain: !Ref Prefix
+        UserPoolId: !Ref UserPool
+
+
+    #VPC and Subnet
     MyVPC:
       Type: AWS::EC2::VPC
       Properties:
