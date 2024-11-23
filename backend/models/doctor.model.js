@@ -1,77 +1,58 @@
-const dynamoose = require('dynamoose');
-const { DynamoDB } = require("@aws-sdk/client-dynamodb");
-require("dotenv").config();
+const mongoose = require('mongoose');
 
-const dynamodb = new DynamoDB({ region: "us-east-1" });
-dynamoose.aws.sdk = dynamodb;
-// Define Slot schema
-const slotSchema = new dynamoose.Schema({
-  time: {
-    type: String,
-    required: true,
-  },
-  isBooked: {
-    type: Boolean,
-    default: false,
-  },
+const Schema = mongoose.Schema;
+
+const slotSchema = new Schema({
+    time : {
+        type: String,
+    },
+    isBooked : {
+        type: Boolean,
+        default: false
+    }
+})
+
+const dateSchedule = new Schema({
+    date : {
+        type: String
+    },
+    slots : [slotSchema]
+})
+
+const doctorSchema = new Schema({
+    username: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    password: {
+        type: String,
+        required: true
+    },
+    name: {
+        type: String
+    },
+    email : {
+        type: String
+    },
+    phoneNumber: {
+        type: String
+    },
+    specialization: {
+        type: String
+    },
+    feesPerSession: {
+        type: String
+    },
+    dates : [dateSchedule]
 });
 
-// Define DateSchedule schema
-const dateScheduleSchema = new dynamoose.Schema({
-  date: {
-    type: String,
-    required: true,
-  },
-  slots: {
-    type: Array,
-    schema: [slotSchema], // Array of Slot objects
-  },
-});
-
-// Define Doctor schema
-const doctorSchema = new dynamoose.Schema({
-  username: {
-    type: String,
-    required: true,
-    hashKey: true, // Partition key
-  },
-  password: {
-    type: String,
-    required: true,
-  },
-  name: {
-    type: String,
-    required: false,
-  },
-  email: {
-    type: String,
-    required: false,
-  },
-  phoneNumber: {
-    type: String,
-    required: false,
-  },
-  specialization: {
-    type: String,
-    required: false,
-  },
-  feesPerSession: {
-    type: String,
-    required: false,
-  },
-  dates: {
-    type: Array,
-    schema: [dateScheduleSchema], // Array of DateSchedule objects
-  },
-}, {
-  timestamps: true, // Automatically adds createdAt and updatedAt fields
-});
-
-// Create models
-const Doctor = dynamoose.model('Doctor', doctorSchema, {
-  create: true, // Automatically create the table if it doesn't exist
-});
+const Doctor = mongoose.model('Doctor', doctorSchema);
+const Slot = mongoose.model('Slot', slotSchema);
+const DateSchedule = mongoose.model('DateSchedule', dateSchedule);
 
 module.exports = {
-  Doctor,
+    Doctor,
+    Slot,
+    DateSchedule
 };

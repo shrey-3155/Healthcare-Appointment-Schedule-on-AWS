@@ -6,148 +6,91 @@ const stripe = require("stripe")("sk_test_51IabQNSCj4BydkZ38AsoDragCM19yaMzGyBVn
 const { v4: uuidv4 } = require('uuid');
 const { Appointment } = appointmentImport;
 
-// ** ONLY FOR TESTING ** To get all the patients
-router.route('/').get(async (req, res) => {
-    try {
-        const patients = await Patient.scan().exec(); // Dynamoose `scan` to fetch all items
+// To get all the patients
+// ** ONLY FOR TESTING **
+router.route('/').get((req, res) => {
+    Patient.find().then(patients => {
         res.status(200).json(patients);
-    } catch (err) {
-        res.status(400).json({ message: `Error: ${err.message}` });
-    }
-});
+    }).catch((err) => {
+        res.status(400).json(`Error : ${err}`);
+    })
+})
 
 // To add a patient
-router.route('/add').post(async (req, res) => {
-    try {
-        const { googleId, name, picture } = req.body;
+router.route('/add').post((req, res) => {
+    const googleId = req.body.googleId;
+    const name = req.body.name;
+    const picture = req.body.picture;
 
-        const newPatient = new Patient({
-            googleId,
-            name,
-            picture,
-        });
+    const newPatient = new Patient({
+        googleId, name, picture
+    })
 
-        await newPatient.save(); // Save patient using Dynamoose
+    newPatient.save().then(() => {
         res.status(200).json('Patient added');
-    } catch (err) {
-        res.status(400).json({ message: `Error: ${err.message}` });
-    }
-});
+    }).catch(err => {
+        res.status(400).json(`Error : ${err}`);
+    })
+})
 
 // To update a patient's phone number
-router.route('/update-phone').put(async (req, res) => {
-    try {
-        const { googleId, phoneNumber } = req.body;
-        console.log(phoneNumber);
-        const patient = await Patient.get(googleId); // Fetch patient by primary key
+router.route('/update-phone').put((req, res) => {
+    const googleId = req.body.googleId;
+
+    Patient.findOne({ googleId: googleId }).then(patient => {
         if (patient) {
-            patient.phoneNumber = phoneNumber;
-            await patient.save(); // Save updated patient record
-            res.status(200).json('Patient\'s phone number updated');
-        } else {
-            res.status(404).json({ message: 'Patient not found' });
+            patient.phoneNumber = req.body.phoneNumber;
+
+            patient.save().then(() => {
+                res.status(200).json('Patient\'s phone number updated');
+            }).catch(err => {
+                res.status(400).json({ message: `Error : ${err}` });
+            });
         }
-    } catch (err) {
-        res.status(400).json({ message: `Error: ${err.message}` });
-    }
-});
-// // Google Login
+    })
+})
+
 router.route('/google-login').post(async (req, res) => {
     try {
         const tokenId = req.body.tokenId;
-        
-        // Decode the JWT
-        const decoded = jwt.decode(tokenId, process.env.KEY);
-        const googleId = decoded.sub;
 
+        // Decode the jwt
+        const decoded = jwt.decode(tokenId, process.env.KEY);
+        const googleId = await decoded.sub;
 
         // Check if the user already exists in the database
-        const patient = Patient.get(googleId);
-        console.log("Reached" + patient.googleId);
+        const patient = await Patient.findOne({ googleId: googleId });
 
         // If the patient is not found
-        if (!patient) {
+        if (patient === null) {
             const { email, name, picture } = decoded;
             const newPatient = new Patient({
-                googleId,
-                email,
-                name,
-                picture,
-            });
-            await newPatient.save();
-            return res.status(200).json({ phoneNumberExists: false });
+                googleId, email, name, picture
+            })
+            const savedPromise = await newPatient.save();
+            if (savedPromise) {
+                return res.status(200).json({ phoneNumberExists: false });
+            }
+            else {
+                throw savedPromise;
+            }
         }
 
         // If the phone number is not present in the database
-        if (!patient.phoneNumber) {
-            console.log("Reached");
+        else if (patient.phoneNumber === undefined) {
             return res.status(200).json({ phoneNumberExists: false });
         }
 
         // Patient's phone number already exists in the database
-        res.status(200).json({ phoneNumberExists: true });
-    } catch (err) {
+        else {
+            return res.status(200).json({ phoneNumberExists: true })
+        }
+    }
+    catch (err) {
         console.log(err);
-        res.status(400).json({ message: `Error: ${err.message}` });
+        return res.status(400).json(err);
     }
 })
-
-// router.route('/google-login').post(async (req, res) => {
-//     try {
-        
-//         const tokenId = req.body.tokenId;
-        
-//         // Decode the JWT
-//         const decoded = jwt.decode(tokenId, process.env.KEY);
-//         if (!decoded) {
-//             return res.status(400).json({ message: 'Invalid token' });
-//         }
-        
-//         const googleId = decoded.sub;
-
-//         try {
-//             // Check if the user already exists in the database
-//             const patient = Patient.get(googleId);
-            
-//             if (!patient) {
-//                 const { email, name, picture } = decoded;
-//                 const newPatient = new Patient({
-//                     googleId,
-//                     email,
-//                     name,
-//                     picture,
-//                 });
-//                 await newPatient.save();
-//                 return res.status(200).json({ phoneNumberExists: false });
-//             }
-
-//             // If the phone number is not present in the database
-//             if (!patient.phoneNumber) {
-//                 return res.status(200).json({ phoneNumberExists: false });
-//             }
-
-//             // Patient's phone number already exists in the database
-//             return res.status(200).json({ phoneNumberExists: true });
-//         } catch (error) {
-//             if (error.code === 'ResourceNotFoundException') {
-//                 // Handle case when the item doesn't exist
-//                 const { email, name, picture } = decoded;
-//                 const newPatient = new Patient({
-//                     googleId,
-//                     email,
-//                     name,
-//                     picture,
-//                 });
-//                 await newPatient.save();
-//                 return res.status(200).json({ phoneNumberExists: false });
-//             }
-//             throw error;
-//         }
-//     } catch (err) {
-//         console.log(err);
-//         res.status(400).json({ message: `Error: ${err.message}` });
-//     }
-// });
 
 router.route('/getPatientDetails/:googleId').get(async (req, res) => {
     try {

@@ -31,23 +31,31 @@ if (isTestEnv) {
     console.log("Connected to DynamoDB Local");
 } else {
     // Use AWS DynamoDB in production
-    // const ddb = new AWS.DynamoDB({
-    //     region: process.env.AWS_REGION || 'us-east-1', // Replace with your AWS region
-    //     accessKeyId: process.env.AWS_ACCESS_KEY_ID,    // AWS Access Key ID
-    //     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY, // AWS Secret Access Key
-    // });
-    // Configure AWS SDK
-// Create new DynamoDB instance
-const ddb = new dynamoose.aws.ddb.DynamoDB({
-    "credentials": {
-        "accessKeyId": process.env.AWS_ACCESS_KEY_ID,
-        "secretAccessKey": process.env.AWS_SECRET_ACCESS_KEY
-    },
-    "region": "us-east-1"
-});
+    const ddb = new AWS.DynamoDB({
+        region: process.env.AWS_REGION || 'us-east-1', // Replace with your AWS region
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,    // AWS Access Key ID
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY, // AWS Secret Access Key
+    });
 
-// Set DynamoDB instance to the Dynamoose DDB instance
+    // Create new DynamoDB instance
+// const ddb = new dynamoose.aws.ddb.DynamoDB({
+//     "credentials": {
+//         "accessKeyId": process.env.AWS_ACCESS_KEY_ID,
+//         "secretAccessKey": process.env.AWS_SECRET_ACCESS_KEY
+//     },
+//     "region": "us-east-1"
+// });
+
     dynamoose.aws.ddb.set(ddb);
+console.log(process.env.AWS_ACCESS_KEY_ID);
+// dynamoose.aws.sdk.config.update({
+//     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+//   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+//   region: 'us-east-1' 
+// })
+    const ddb1 = new AWS.DynamoDB();
+    const tables = ddb1.listTables().promise();
+    console.log(tables.TableNames);
     console.log("Connected to DynamoDB AWS");
 }
 

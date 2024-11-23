@@ -12,6 +12,7 @@
   "author": "PBL Team IT",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.699.0",
     "aws-sdk": "^2.1692.0",
     "cors": "^2.8.5",
     "dotenv": "^8.2.0",

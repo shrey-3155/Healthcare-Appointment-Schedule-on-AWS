@@ -1,38 +1,27 @@
-const dynamoose = require('dynamoose');
-const { DynamoDB } = require("@aws-sdk/client-dynamodb");
-require("dotenv").config();
+const mongoose = require('mongoose');
 
-const dynamodb = new DynamoDB({ region: "us-east-1" });
-dynamoose.aws.sdk = dynamodb;
+const Schema = mongoose.Schema;
 
-// Define the schema
-const patientSchema = new dynamoose.Schema({
-  googleId: {
-    type: String,
-    required: true,
-    hashKey: true, // Partition key
-  },
-  email: {
-    type: String,
-    required: false,
-  },
-  name: {
-    type: String,
-    required: false,
-  },
-  picture: {
-    type: String,
-    required: false,
-  },
-  phoneNumber: {
-    type: String,
-    required: false,
-  },
-}, {
-  timestamps: true, // Automatically add createdAt and updatedAt
+const patientSchema = new Schema({
+    googleId: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    email : {
+        type: String
+    },
+    name: {
+        type: String
+    },
+    picture: {
+        type: String
+    },
+    phoneNumber: {
+        type: String
+    }
 });
 
-// Create the model
-const Patient = dynamoose.model('Patient', patientSchema);
+const Patient = mongoose.model('Patient', patientSchema);
 
 module.exports = Patient;
