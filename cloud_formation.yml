@@ -349,6 +349,51 @@ Resources:
         UserData:
           Fn::Base64:
             !Sub |
+            #!/bin/bash
+            sudo su - root
+            sudo yum update -y
+            sudo yum install gcc-c++ make -y
+            curl -sL https://rpm.nodesource.com/setup_16.x | sudo bash -
+            sudo yum update -y
+            sudo yum install nodejs -y
+            cat <<EOF | sudo tee /etc/yum.repos.d/mongodb-org-5.0.repo
+            [mongodb-org-5.0]
+            name=MongoDB Repository
+            baseurl=https://repo.mongodb.org/yum/amazon/2/mongodb-org/5.0/x86_64/
+            gpgcheck=1
+            enabled=1
+            gpgkey=https://www.mongodb.org/static/pgp/server-5.0.asc
+            EOF
+            sudo yum install -y mongodb-org
+            sudo systemctl start mongod
+            git clone https://github.com/shrey-3155/Healthcare-Appointment-Schedule-on-AWS.git
+            cd Healthcare-Appointment-Schedule-on-AWS/
+            cd backend/
+            npm install;
+            cat <<EOF > /.env
+            PORT=5000
+            ATLAS_URI=mongodb://localhost:27107
+            ATLAS_URI_TEST=mongodb+srv://username:password@cluster0.mongodb.net/testdatabase?retryWrites=true&w=majority
+            NODE_ENV=dev
+            KEY=SECRETKEY
+            ALGORITHM=HS256
+            CLIENT_ID=521254851329-0sk5ad8mmo3t9vnn380rknqtb45sopfv.apps.googleusercontent.com
+            PASSWORD_SALT=your-salt-value
+            EOF
+            npm start;
+
+
+
+          # Install MongoDB
+          sudo yum install -y mongodb-org
+            
+            
+            
+            
+            yum install -y git
+
+            sudo vi /etc/yum.repos.d/mongodb-org-5.0.repo
+            
 
         Tags:
           - Key: Name
