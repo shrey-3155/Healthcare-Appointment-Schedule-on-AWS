@@ -36,7 +36,7 @@ Parameters:
   InstanceType:
     Description: Select instance type
     Type: String
-    Default: t2.medium
+    Default: t2.small
     AllowedValues:
         - t2.small
         - t2.micro
@@ -64,45 +64,7 @@ Parameters:
 
 Resources:
 
-    # Cognito User Pool for user authentication
-    UserPool:
-      Type: 'AWS::Cognito::UserPool'
-      Properties:
-        UserPoolName: !Sub ${Prefix}-UserPool
-        UsernameAttributes:
-          - email
-        AutoVerifiedAttributes:
-          - email
-        UsernameConfiguration:
-          CaseSensitive: true
-        Schema:
-          - Name: email
-            AttributeDataType: String
-            Required: true
-            Mutable: true
-        VerificationMessageTemplate:
-          DefaultEmailOption: CONFIRM_WITH_LINK
-          EmailMessageByLink: 'Click the Verify Email link to verify your email address to Sign Up for Healtcare Appointment Booking. {##Verify Email##}'
-
-    # Client for accessing the Cognito User Pool
-    UserPoolClient:
-      Type: AWS::Cognito::UserPoolClient
-      Properties:
-        UserPoolId: !Ref UserPool
-        AccessTokenValidity: 1
-        SupportedIdentityProviders:
-          - COGNITO
-        TokenValidityUnits:
-          AccessToken: days
-
-    # Domain setup for the Cognito User Pool
-    UserPoolDomain:
-      Type: AWS::Cognito::UserPoolDomain
-      Properties:
-        Domain: !Ref Prefix
-        UserPoolId: !Ref UserPool
-
-
+    
     #VPC and Subnet
     MyVPC:
       Type: AWS::EC2::VPC
@@ -123,13 +85,6 @@ Resources:
         MapPublicIpOnLaunch: true
         AvailabilityZone: !Select [ 0, !GetAZs "" ]
 
-    PublicSubnet2:
-      Type: AWS::EC2::Subnet
-      Properties:
-        VpcId: !Ref MyVPC
-        CidrBlock: 10.0.2.0/24
-        MapPublicIpOnLaunch: true
-        AvailabilityZone: !Select [ 1, !GetAZs "" ]
 
     PrivateSubnet1:
       Type: AWS::EC2::Subnet
@@ -143,7 +98,7 @@ Resources:
       Properties:
         VpcId: !Ref MyVPC
         CidrBlock: 10.0.4.0/24
-        AvailabilityZone: !Select [ 1, !GetAZs "" ]
+        AvailabilityZone: !Select [ 0, !GetAZs "" ]
 
     InternetGateway:
       Type: AWS::EC2::InternetGateway
@@ -208,103 +163,35 @@ Resources:
         SubnetId: !Ref PublicSubnet1
 
 
-  ## S3 Bucket
-  # S3 Bucket for storing files
-    Bucket:
-      Type: AWS::S3::Bucket
-#      DependsOn:
-#        - BucketPermissionAccess
-      Properties:
-        BucketName: !Ref BucketName
-        PublicAccessBlockConfiguration:
-          BlockPublicAcls: false
-          BlockPublicPolicy: false
-          IgnorePublicAcls: false
-          RestrictPublicBuckets: false
-   
-    PublicAccessBucketPolicy:
-      Type: 'AWS::S3::BucketPolicy'
-      Properties:
-        Bucket: !Ref Bucket
-        PolicyDocument:
-          Version: '2012-10-17'
-          Statement:
-            - Sid: PublicReadGetObject
-              Effect: Allow
-              Principal: '*'
-              Action: 's3:GetObject'
-              Resource:
-                Fn::Sub: 'arn:aws:s3:::${Bucket}/*'
-
-    ## DynamoDB Tables
-    PatientSchema:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: patientSchema
-        AttributeDefinitions:
-          - AttributeName: patientId
-            AttributeType: S
-        KeySchema:
-          - AttributeName: patientId
-            KeyType: HASH
-        ProvisionedThroughput:
-            ReadCapacityUnits: "1"
-            WriteCapacityUnits: "1"
-
-    DoctorSchema:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: doctorSchema
-        AttributeDefinitions:
-          - AttributeName: username
-            AttributeType: S
-        KeySchema:
-          - AttributeName: username
-            KeyType: HASH
-        ProvisionedThroughput:
-            ReadCapacityUnits: "1"
-            WriteCapacityUnits: "1"
-
-    AppointmentSchema:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: appointmentSchema
-        AttributeDefinitions:
-          - AttributeName: patientId
-            AttributeType: S
-        KeySchema:
-          - AttributeName: patientId
-            KeyType: HASH
-        ProvisionedThroughput:
-          ReadCapacityUnits: "1"
-          WriteCapacityUnits: "1"
-
-    FeedbackSchema:
-      Type: AWS::DynamoDB::Table
-      Properties:
-        TableName: feedbackSchema
-        AttributeDefinitions:
-          - AttributeName: feedbackId
-            AttributeType: S
-        KeySchema:
-          - AttributeName: feedbackId
-            KeyType: HASH
-        ProvisionedThroughput:
-          ReadCapacityUnits: "1"
-          WriteCapacityUnits: "1"
-
      ## SNS Topic for Blog Notifications
     AppointmentNotificationTopic:
       Type: AWS::SNS::Topic
       Properties:
         TopicName: AppointmentNotificationTopic
 
+    ##Secrets Manager
+    MySecret:
+      Type: AWS::SecretsManager::Secret
+      Properties:
+        Name: MySecret
+        Description: "Secrets for Frontend and Backend applications"
+        SecretString: !Sub |
+          {
+            "REACT_APP_CLIENT_ID": "521254851329-0sk5ad8mmo3t9vnn380rknqtb45sopfv.apps.googleusercontent.com",
+            "REACT_APP_API_KEY": "AIzaSyBx0hYdK_P-fk_CLmmv8J7JMbP4aTMjbQM",
+            "REACT_APP_DISCOVERY_DOCS": "https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest",
+            "REACT_APP_SCOPE":"https://www.googleapis.com/auth/calendar",
+            "KEY":"SECRETKEY",
+            "ALGORITHM":"HS256",
+            "CLIENT_ID":"521254851329-0sk5ad8mmo3t9vnn380rknqtb45sopfv.apps.googleusercontent.com",
+            "PASSWORD_SALT":"my-password-salt"
+          }
 
   ##Permissions
 
   ##EC2 instance setup and configuration:
    # Security Group allowing HTTPS access through port 4200
-    EC2SecurityGroup:
+    FrontendSecurityGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
         GroupDescription: Allow SSH and HTTP access to EC2
@@ -319,6 +206,35 @@ Resources:
             ToPort: 8080
             CidrIp: 0.0.0.0/0
 
+    MongoDBSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Allow MongoDB traffic
+        VpcId: !Ref MyVPC
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 27017
+            ToPort: 27017
+        Tags:
+          - Key: Name
+            Value: MongoDBSecurityGroup
+
+    BackendSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Allow traffic from frontend and MongoDB
+        VpcId: !Ref MyVPC
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 8080
+            ToPort: 8080
+          - IpProtocol: tcp
+            FromPort: 27017
+            ToPort: 27017
+        Tags:
+          - Key: Name
+            Value: BackendSecurityGroup
+
     # EC2 instance definition
     FrontendEC2Instance:
       Type: AWS::EC2::Instance
@@ -328,11 +244,25 @@ Resources:
         ImageId: ami-012967cc5a8c9f891
         SubnetId: !Ref PublicSubnet1
         SecurityGroupIds:
-          - !Ref EC2SecurityGroup
+          - !Ref FrontendSecurityGroup
         UserData:
           Fn::Base64:
             !Sub |
-
+            #!/bin/bash
+              sudo su - root
+              sudo yum update -y
+              sudo yum install gcc-c++ make -y
+              yum install -y git
+              curl -sL https://rpm.nodesource.com/setup_16.x | sudo bash -
+              sudo yum update -y
+              sudo yum install nodejs -y
+              git clone https://github.com/shrey-3155/Healthcare-Appointment-Schedule-on-AWS.git
+              sudo su - root
+              cd /Healthcare-Appointment-Schedule-on-AWS
+              cd frontend/
+              npm install --force;
+              echo "REACT_APP_SERVER_URL=http://${ElasticIP.PublicIp}:5000" | sudo tee -a .env
+              npm start;
         Tags:
         - Key: Name
           Value: frontend-healthcare
@@ -345,56 +275,25 @@ Resources:
         ImageId: ami-012967cc5a8c9f891
         SubnetId: !Ref PrivateSubnet1
         SecurityGroupIds:
-          - !Ref EC2SecurityGroup
+          - !Ref MongoDBSecurityGroup
         UserData:
           Fn::Base64:
             !Sub |
-            #!/bin/bash
-            sudo su - root
-            sudo yum update -y
-            sudo yum install gcc-c++ make -y
-            curl -sL https://rpm.nodesource.com/setup_16.x | sudo bash -
-            sudo yum update -y
-            sudo yum install nodejs -y
-            cat <<EOF | sudo tee /etc/yum.repos.d/mongodb-org-5.0.repo
-            [mongodb-org-5.0]
-            name=MongoDB Repository
-            baseurl=https://repo.mongodb.org/yum/amazon/2/mongodb-org/5.0/x86_64/
-            gpgcheck=1
-            enabled=1
-            gpgkey=https://www.mongodb.org/static/pgp/server-5.0.asc
-            EOF
-            sudo yum install -y mongodb-org
-            sudo systemctl start mongod
-            git clone https://github.com/shrey-3155/Healthcare-Appointment-Schedule-on-AWS.git
-            cd Healthcare-Appointment-Schedule-on-AWS/
-            cd backend/
-            npm install;
-            cat <<EOF > /.env
-            PORT=5000
-            ATLAS_URI=mongodb://localhost:27107
-            ATLAS_URI_TEST=mongodb+srv://username:password@cluster0.mongodb.net/testdatabase?retryWrites=true&w=majority
-            NODE_ENV=dev
-            KEY=SECRETKEY
-            ALGORITHM=HS256
-            CLIENT_ID=521254851329-0sk5ad8mmo3t9vnn380rknqtb45sopfv.apps.googleusercontent.com
-            PASSWORD_SALT=your-salt-value
-            EOF
-            npm start;
-
-
-
-          # Install MongoDB
-          sudo yum install -y mongodb-org
-            
-            
-            
-            
-            yum install -y git
-
-            sudo vi /etc/yum.repos.d/mongodb-org-5.0.repo
-            
-
+              sudo su - root
+              sudo yum update -y
+              sudo yum install gcc-c++ make -y
+              yum install -y git
+              curl -sL https://rpm.nodesource.com/setup_16.x | sudo bash -
+              sudo yum update -y
+              sudo yum install nodejs -y
+              echo "[mongodb-org-8.0]" | sudo tee /etc/yum.repos.d/mongodb-org-8.0.repo
+              echo "name=MongoDB Repository" | sudo tee -a /etc/yum.repos.d/mongodb-org-8.0.repo
+              echo "baseurl=https://repo.mongodb.org/yum/amazon/2023/mongodb-org/8.0/x86_64/" | sudo tee -a /etc/yum.repos.d/mongodb-org-8.0.repo
+              echo "gpgcheck=1" | sudo tee -a /etc/yum.repos.d/mongodb-org-8.0.repo
+              echo "enabled=1" | sudo tee -a /etc/yum.repos.d/mongodb-org-8.0.repo
+              echo "gpgkey=https://www.mongodb.org/static/pgp/server-8.0.asc" | sudo tee -a /etc/yum.repos.d/mongodb-org-8.0.repo
+              sudo yum install -y mongodb-org
+              sudo systemctl start mongod
         Tags:
           - Key: Name
             Value: backend-healthcare1
@@ -407,95 +306,99 @@ Resources:
         ImageId: ami-012967cc5a8c9f891
         SubnetId: !Ref PrivateSubnet1
         SecurityGroupIds:
-          - !Ref EC2SecurityGroup
+          - !Ref BackendSecurityGroup
         UserData:
           Fn::Base64:
             !Sub |
-
+              sudo su - root
+              sudo yum update -y
+              sudo yum install gcc-c++ make -y
+              yum install -y git
+              curl -sL https://rpm.nodesource.com/setup_16.x | sudo bash -
+              sudo yum update -y
+              sudo yum install nodejs -y
+              git clone https://github.com/shrey-3155/Healthcare-Appointment-Schedule-on-AWS.git
+              sudo su - root
+              cd /Healthcare-Appointment-Schedule-on-AWS
+              cd backend/
+              npm install;
+              sudo yum install -y jq
+              echo "PORT=5000" | sudo tee -a .env
+              echo "ATLAS_URI=mongodb://localhost:27107" | sudo tee -a .env
+              echo "ATLAS_URI_TEST=mongodb+srv://username:password@cluster0.mongodb.net/testdatabase?retryWrites=true&w=majority" | sudo tee -a .env
+              echo "NODE_ENV=dev" | sudo tee -a .env
+              npm start;
         Tags:
           - Key: Name
             Value: backend-healthcare2
 
-    BackendEC2Instance3:
-      Type: AWS::EC2::Instance
-      Properties:
-        InstanceType: !Ref InstanceType
-        KeyName: !Ref 'KeyName'
-        ImageId: ami-012967cc5a8c9f891
-        SubnetId: !Ref PrivateSubnet1
-        SecurityGroupIds:
-          - !Ref EC2SecurityGroup
-        UserData:
-          Fn::Base64:
-            !Sub |
-
-        Tags:
-          - Key: Name
-            Value: backend-healthcare3
-
-    ##Load Balancer Setup for backend
-  # Security Group for the Load Balancer
-    LoadBalancerSecurityGroup:
-      Type: AWS::EC2::SecurityGroup
-      Properties:
-        GroupDescription: Allow HTTP access for Load Balancer
-        VpcId: !Ref MyVPC
-        SecurityGroupIngress:
-          - IpProtocol: tcp
-            FromPort: 80
-            ToPort: 80
-            CidrIp: 0.0.0.0/0
-
-  # Application Load Balancer
-    ApplicationLoadBalancer:
-      Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-      Properties:
-        Name: BackendALB
-        Scheme: internet-facing
-        Subnets:
-          - !Ref PublicSubnet1
-          - !Ref PublicSubnet2
-        SecurityGroups:
-          - !Ref LoadBalancerSecurityGroup
-        Type: application
-        Tags:
-          - Key: Name
-            Value: BackendLoadBalancer
-
-  # Target Group for Backend Instances
-    BackendTargetGroup:
-      Type: AWS::ElasticLoadBalancingV2::TargetGroup
-      Properties:
-        Name: BackendTargetGroup
-        Protocol: HTTP
-        Port: 8080
-        VpcId: !Ref MyVPC
-        TargetType: instance
-        HealthCheckProtocol: HTTP
-        HealthCheckPort: 8080
-        HealthCheckPath: /
-        Matcher:
-          HttpCode: 200
-        Targets:
-          - Id: !Ref BackendEC2Instance1
-          - Id: !Ref BackendEC2Instance2
-          - Id: !Ref BackendEC2Instance3
-
-  # Listener for the Application Load Balancer
-    ALBListener:
-      Type: AWS::ElasticLoadBalancingV2::Listener
-      Properties:
-        DefaultActions:
-          - Type: forward
-            TargetGroupArn: !Ref BackendTargetGroup
-        LoadBalancerArn: !Ref ApplicationLoadBalancer
-        Port: 80
-        Protocol: HTTP
+    #Load Balancer Setup for backend
+#  # Security Group for the Load Balancer
+#    LoadBalancerSecurityGroup:
+#      Type: AWS::EC2::SecurityGroup
+#      Properties:
+#        GroupDescription: Allow HTTP access for Load Balancer
+#        VpcId: !Ref MyVPC
+#        SecurityGroupIngress:
+#          - IpProtocol: tcp
+#            FromPort: 80
+#            ToPort: 80
+#            CidrIp: 0.0.0.0/0
+#
+#  # Application Load Balancer
+#    ApplicationLoadBalancer:
+#      Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+#      Properties:
+#        Name: BackendALB
+#        Scheme: internet-facing
+#        Subnets:
+#          - !Ref PublicSubnet1
+#        SecurityGroups:
+#          - !Ref LoadBalancerSecurityGroup
+#        Type: application
+#        Tags:
+#          - Key: Name
+#            Value: BackendLoadBalancer
+#
+#  # Target Group for Backend Instances
+#    BackendTargetGroup:
+#      Type: AWS::ElasticLoadBalancingV2::TargetGroup
+#      Properties:
+#        Name: BackendTargetGroup
+#        Protocol: HTTP
+#        Port: 8080
+#        VpcId: !Ref MyVPC
+#        TargetType: instance
+#        HealthCheckProtocol: HTTP
+#        HealthCheckPort: 8080
+#        HealthCheckPath: /
+#        Matcher:
+#          HttpCode: 200
+#        Targets:
+#          - Id: !Ref BackendEC2Instance1
+#          - Id: !Ref BackendEC2Instance2
+#
+#  # Listener for the Application Load Balancer
+#    ALBListener:
+#      Type: AWS::ElasticLoadBalancingV2::Listener
+#      Properties:
+#        DefaultActions:
+#          - Type: forward
+#            TargetGroupArn: !Ref BackendTargetGroup
+#        LoadBalancerArn: !Ref ApplicationLoadBalancer
+#        Port: 80
+#        Protocol: HTTP
 Outputs:
   BlogNotificationTopicArn:
     Description: The ARN of the SNS Topic for healthcare notifications
     Value: !Ref AppointmentNotificationTopic
 
+  NATGatewayElasticIP:
+    Description: Public Elastic IP address associated with the NAT Gateway
+    Value: !GetAtt ElasticIP.PublicIp
+    Export:
+      Name: NATGatewayElasticIP
+      
   ApplicationURL:
     Description: The URL of the deployed application
     Value: !Join
@@ -504,4 +407,4 @@ Outputs:
         - !GetAtt
           - FrontendEC2Instance
           - PublicDnsName
-        - ':4200'
+        - ':3000'

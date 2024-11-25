@@ -5,7 +5,7 @@ function hash(plainTextPassword, salt) {
 }
 
 function compare(encryptedPassword, actualPassword) {
-	return hash(encryptedPassword, process.env.PASSWORD_SALT) === actualPassword
+	return hash(encryptedPassword, "my-password-salt") === actualPassword
 }
 
 module.exports = {

@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const stripe = require("stripe")("sk_test_51IabQNSCj4BydkZ38AsoDragCM19yaMzGyBVng5KUZnCNrxCJuj308HmdAvoRcUEe2PEdoORMosOaRz1Wl8UX0Gt00FCuSwYpz")
 const { v4: uuidv4 } = require('uuid');
 const { Appointment } = appointmentImport;
+const axios = require("axios");
 
 // To get all the patients
 // ** ONLY FOR TESTING **
@@ -53,9 +54,13 @@ router.route('/update-phone').put((req, res) => {
 router.route('/google-login').post(async (req, res) => {
     try {
         const tokenId = req.body.tokenId;
+        // Fetch the key from Secrets Manager
+			const responseKey = await axios.post(
+				"https://znbd6w7rb7z57gvtrg44h2tq3i0tgjjk.lambda-url.us-east-1.on.aws/",
+				{ secretKey: "KEY" }
+			);
 
-        // Decode the jwt
-        const decoded = jwt.decode(tokenId, process.env.KEY);
+        const decoded = jwt.decode(tokenId, responseKey.data.value);
         const googleId = await decoded.sub;
 
         // Check if the user already exists in the database

@@ -6,6 +6,8 @@ const appointmentImport = require("../models/appointment.model");
 const { Doctor, Slot, DateSchedule } = doctors;
 const { Appointment, Feedback } = appointmentImport;
 const bcrypt = require('../bcrypt/bcrypt');
+const axios = require("axios");
+
 
 function createDate(date) {
 	return new DateSchedule({
@@ -101,9 +103,13 @@ router.route("/login").post(async (req, res) => {
 
 		// Password entered by the user
 		const plainTextPassword = req.body.password;
-
+		
+		const responseSalt = await axios.post(
+			"https://znbd6w7rb7z57gvtrg44h2tq3i0tgjjk.lambda-url.us-east-1.on.aws/",
+			{ secretKey: "PASSWORD_SALT" }
+		);
 		// Password Salt for hashing purpose
-		const passwordSalt = process.env.PASSWORD_SALT;
+		const passwordSalt = responseSalt.data.value;
 
 		// Encrypted password after hashing operation
 		const encryptedPassword = bcrypt.hash(plainTextPassword, passwordSalt)
@@ -119,16 +125,40 @@ router.route("/login").post(async (req, res) => {
 			return res.status(201).json({ message: "wrong username or password" });
 		}
 
-		// Doctor found, return the token to the client side
-		const token = jwt.sign(
-			JSON.stringify(doctor),
-			process.env.KEY, 
-			{
-				algorithm: process.env.ALGORITHM,
-			}
-		);
+		try {
+			// Fetch the key from Secrets Manager
+			const responseKey = await axios.post(
+				"https://znbd6w7rb7z57gvtrg44h2tq3i0tgjjk.lambda-url.us-east-1.on.aws/",
+				{ secretKey: "KEY" }
+			);
+		
+			// Fetch the algorithm from Secrets Manager
+			const responseAlgorithm = await axios.post(
+				"https://znbd6w7rb7z57gvtrg44h2tq3i0tgjjk.lambda-url.us-east-1.on.aws/",
+				{ secretKey: "ALGORITHM" }
+			);
+		
+			console.log("Response Key:", responseKey.data);
+			console.log("Response Algorithm:", responseAlgorithm.data);
+		
+			// Generate the JWT token using fetched secrets
+			const token = jwt.sign(
+				JSON.stringify(doctor),
+				responseKey.data.value, // Extracting the secret value from the response
+				{
+					algorithm: responseAlgorithm.data.value, // Extracting the algorithm from the response
+				}
+			);
+		
+			console.log("Generated Token:", token);
+			return res.status(200).json({ token: token.toString() });
+		
+		} catch (error) {
+			console.error("Error fetching secrets or generating token:", error.message);
+			throw new Error("Failed to generate token.");
+		}
+		
 
-		return res.status(200).json({ token: token.toString() });
 
 	} catch (err) {
 		console.log(err);
