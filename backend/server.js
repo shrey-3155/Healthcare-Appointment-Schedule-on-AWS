@@ -5,9 +5,6 @@ const mongoose = require('mongoose');
 const patientsRouter = require('./routes/patients');
 const doctorsRotuer = require('./routes/doctors');
 const appointmentRouter = require('./routes/appointments');
-const AWS = require('aws-sdk'); // Import AWS SDK
-const dynamoose = require('dynamoose'); // Import dynamoose
-
 require('dotenv').config();
  
 app.use(express.json());
@@ -24,41 +21,14 @@ app.use('/doctors', doctorsRotuer);
 app.use('/appointments', appointmentRouter);
 
 const port = process.env.PORT || 5000;
-// Configure DynamoDB
-const isTestEnv = process.env.NODE_ENV === 'test';
-if (isTestEnv) {
-    dynamoose.aws.ddb.local('http://localhost:8000'); // Use local DynamoDB for testing
-    console.log("Connected to DynamoDB Local");
-} else {
-    // Use AWS DynamoDB in production
-    const ddb = new AWS.DynamoDB({
-        region: process.env.AWS_REGION || 'us-east-1', // Replace with your AWS region
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,    // AWS Access Key ID
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY, // AWS Secret Access Key
-    });
+let uri = '';
+process.env.NODE_ENV === 'test' ? uri = process.env.ATLAS_URI_TEST : uri = process.env.ATLAS_URI;
 
-    // Create new DynamoDB instance
-// const ddb = new dynamoose.aws.ddb.DynamoDB({
-//     "credentials": {
-//         "accessKeyId": process.env.AWS_ACCESS_KEY_ID,
-//         "secretAccessKey": process.env.AWS_SECRET_ACCESS_KEY
-//     },
-//     "region": "us-east-1"
-// });
-
-    dynamoose.aws.ddb.set(ddb);
-console.log(process.env.AWS_ACCESS_KEY_ID);
-// dynamoose.aws.sdk.config.update({
-//     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-//   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-//   region: 'us-east-1' 
-// })
-    const ddb1 = new AWS.DynamoDB();
-    const tables = ddb1.listTables().promise();
-    console.log(tables.TableNames);
-    console.log("Connected to DynamoDB AWS");
-}
-
+mongoose.connect(uri, { useNewUrlParser: true, useCreateIndex: true, useUnifiedTopology: true, useFindAndModify: false }, (err) => {
+    if (!err) {
+        console.log("Connection to database successful!");
+    }
+});
 
 function getCurrentTime() {
     const date = new Date()
@@ -66,6 +36,7 @@ function getCurrentTime() {
 }
 
 function getEndDateTime(dateTime) {
+    // 2021-03-22T09:00:00
     const hrs = (parseInt(dateTime.split('T')[1].split(':')[0]) + 1).toString().padStart(2, '0')
     const time = hrs + ':00:00'
     const date = dateTime.split('T')[0]
