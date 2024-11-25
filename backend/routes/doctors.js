@@ -138,9 +138,6 @@ router.route("/login").post(async (req, res) => {
 				{ secretKey: "ALGORITHM" }
 			);
 		
-			console.log("Response Key:", responseKey.data);
-			console.log("Response Algorithm:", responseAlgorithm.data);
-		
 			// Generate the JWT token using fetched secrets
 			const token = jwt.sign(
 				JSON.stringify(doctor),
