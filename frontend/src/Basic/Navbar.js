@@ -84,7 +84,7 @@ const Navbar = () => {
     >
       <Link to="/" className="navbar-brand">
         <img
-          src={logo}
+          src="https://healtcareappointmentschedule.s3.us-east-1.amazonaws.com/images/navbaricon1.png"
           alt=""
           width="30"
           height="24"

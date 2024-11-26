@@ -8,7 +8,7 @@ const About = () => {
     <div className="card my-5  ">
       <div className="row g-0">
         <div className="col-md-4 order-md-2">
-          <img src={Image} className="img-fluid rounded-start" alt="..." 
+          <img src="https://healtcareappointmentschedule.s3.us-east-1.amazonaws.com/images/doctor.jpg" className="img-fluid rounded-start" alt="..." 
           width={300}
             height={300}
           />

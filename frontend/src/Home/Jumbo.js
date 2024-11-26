@@ -28,7 +28,7 @@ const Jumbo=()=>{
                   className="d-block w-100"
                   
                   src={
-                    co1
+                    "https://healtcareappointmentschedule.s3.us-east-1.amazonaws.com/images/co1.jpg"
                   }
                 />
 {/* 
@@ -41,7 +41,7 @@ const Jumbo=()=>{
                   alt="carousel-image2"
                   className="d-block w-100"
                   src={
-                    co2
+                    "https://healtcareappointmentschedule.s3.us-east-1.amazonaws.com/images/co2.jpg"
                   }
                 />
                 {/* <Carousel.Caption>
@@ -53,7 +53,8 @@ const Jumbo=()=>{
                   alt="carousel-image3"
                   className="d-block w-100"
                   src={
-co4                  }
+                  "https://healtcareappointmentschedule.s3.us-east-1.amazonaws.com/images/co4.jpg"
+                  }
                 />
                 {/* <Carousel.Caption>
                   <h3>Third</h3>

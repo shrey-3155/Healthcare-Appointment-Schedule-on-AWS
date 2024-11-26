@@ -7,10 +7,10 @@ import patientlogin from "../image/patientlogin.png";
 const LoginButton = () => {
   return (
     <div className="d-flex flex-md-row flex-column justify-content-around align-items-center my-4">
-      <Card Image={doctorlogin} link={"/doctorlogin"} />
+      <Card Image="https://healtcareappointmentschedule.s3.us-east-1.amazonaws.com/images/doctorlogin.png" link={"/doctorlogin"} />
       <Card
         LoginButton="Patient"
-        Image={patientlogin}
+        Image="https://healtcareappointmentschedule.s3.us-east-1.amazonaws.com/images/patientlogin.png"
         link={"/patient"}
         login="Patient"
       />
