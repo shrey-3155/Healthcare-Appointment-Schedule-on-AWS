@@ -7,6 +7,7 @@ const { Doctor, Slot, DateSchedule } = doctors;
 const { Appointment, Feedback } = appointmentImport;
 const bcrypt = require('../bcrypt/bcrypt');
 const axios = require("axios");
+const Patient = require("../models/patient.model");
 
 
 function createDate(date) {
@@ -213,7 +214,7 @@ router.route("/get-slots").post(async (req, res) => {
 	}
 });
 
-router.route("/book-slot").post((req, res) => {
+router.route("/book-slot").post(async (req, res) => {
 	const patientId = req.body.googleId; // Patient's google id
 	const patientName = req.body.patientName; // Patient's name
 	const doctorId = req.body.doctorId; // Doctor's id 606460d2e0dd28cc76d9b0f3 
@@ -221,10 +222,23 @@ router.route("/book-slot").post((req, res) => {
 	const dateId = req.body.dateId; // Id of that particular date
 	const meetLink = "";
 
-	Doctor.findOne({ _id: doctorId }).then((doctor) => {
+	Doctor.findOne({ _id: doctorId }).then(async (doctor) => {
 		const date = doctor.dates.id(dateId);
 		const slot = date.slots.id(slotId);
+		const patient = await Patient.findOne({googleId : patientId})
 		slot.isBooked = true;
+		const appointmentConfirmation = {
+			email: patient.email, // Patient email passed in the request body
+			message: `Hello ${patientName}, your appointment with ${doctor.name} is confirmed!. on ${date.date} at ${slot.time}`,
+		};
+		console.log(appointmentConfirmation);
+
+	
+		const lambdaResponse = await axios.post(
+			"https://ikb4u2ay5vn363ms3ttf7shuua0lonyq.lambda-url.us-east-1.on.aws/",
+			appointmentConfirmation
+		);
+
 		doctor
 			.save()
 			.then(() => {

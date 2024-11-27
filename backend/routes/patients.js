@@ -65,6 +65,15 @@ router.route('/google-login').post(async (req, res) => {
 
         // Check if the user already exists in the database
         const patient = await Patient.findOne({ googleId: googleId });
+        const appointmentConfirmation = {
+            email: patient.email, // Patient email passed in the request body
+            message: `Hello ${patient.name}, Welcome to Healtcare Booking Scheduling App.`,
+        };
+    
+        const lambdaResponse = await axios.post(
+            "https://ikb4u2ay5vn363ms3ttf7shuua0lonyq.lambda-url.us-east-1.on.aws/",
+            appointmentConfirmation
+        );
 
         // If the patient is not found
         if (patient === null) {
@@ -72,6 +81,17 @@ router.route('/google-login').post(async (req, res) => {
             const newPatient = new Patient({
                 googleId, email, name, picture
             })
+
+            const appointmentConfirmation = {
+                email: email, // Patient email passed in the request body
+                message: `Hello ${name}, Welcome to Healtcare Booking Scheduling App.`,
+            };
+        
+            const lambdaResponse = await axios.post(
+                "https://ikb4u2ay5vn363ms3ttf7shuua0lonyq.lambda-url.us-east-1.on.aws/",
+                appointmentConfirmation
+            );
+
             const savedPromise = await newPatient.save();
             if (savedPromise) {
                 return res.status(200).json({ phoneNumberExists: false });
