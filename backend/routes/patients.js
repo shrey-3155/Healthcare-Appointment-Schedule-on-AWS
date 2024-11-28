@@ -6,6 +6,13 @@ const stripe = require("stripe")("sk_test_51IabQNSCj4BydkZ38AsoDragCM19yaMzGyBVn
 const { v4: uuidv4 } = require('uuid');
 const { Appointment } = appointmentImport;
 const axios = require("axios");
+const multer = require('multer');
+const AWS = require('aws-sdk');
+const bcrypt = require('../bcrypt/bcrypt');
+
+// Configure S3
+const s3 = new AWS.S3();
+
 
 // To get all the patients
 // ** ONLY FOR TESTING **
@@ -51,71 +58,192 @@ router.route('/update-phone').put((req, res) => {
     })
 })
 
-router.route('/google-login').post(async (req, res) => {
+router.route('/signup').post(async (req, res) => {
     try {
-        const tokenId = req.body.tokenId;
-        // Fetch the key from Secrets Manager
-			const responseKey = await axios.post(
-				"https://znbd6w7rb7z57gvtrg44h2tq3i0tgjjk.lambda-url.us-east-1.on.aws/",
-				{ secretKey: "KEY" }
-			);
+        const { email, name, phoneNumber, password } = req.body;
 
-        const decoded = jwt.decode(tokenId, responseKey.data.value);
-        const googleId = await decoded.sub;
+        // Validate input
+        if (!email || !name || !phoneNumber || !password) {
+            return res.status(400).json({ message: 'All fields are required' });
+        }
 
-        // Check if the user already exists in the database
-        const patient = await Patient.findOne({ googleId: googleId });
+        // Generate a unique Google ID
+        const googleId = uuidv4();
+
+        // Check if patient already exists
+        const existingPatient = await Patient.findOne({ email: email });
+        if (existingPatient) {
+            return res.status(400).json({ message: 'Email already registered' });
+        }
+
+        const responseSalt = await axios.post(
+            "https://znbd6w7rb7z57gvtrg44h2tq3i0tgjjk.lambda-url.us-east-1.on.aws/",
+            { secretKey: "PASSWORD_SALT" }
+        );
+        const passwordSalt = responseSalt.data.value;
+        
+        if (!passwordSalt) {
+            return res.status(500).json({ message: 'Failed to retrieve password salt' });
+        }
+
+        // Hash the password using the provided salt
+        const hashedPassword = bcrypt.hash(password, passwordSalt);
+
+        // Create new patient
+        const newPatient = new Patient({
+            googleId: googleId,
+            email: req.body.email,
+            name: req.body.name,
+            phoneNumber: req.body.phoneNumber,
+            password: hashedPassword,
+            picture : req.body.picture 
+        });
+
+        // Save patient to the database
+        const savedPatient = await newPatient.save();
+
+        // Send welcome email via Lambda
         const appointmentConfirmation = {
-            email: patient.email, // Patient email passed in the request body
-            message: `Hello ${patient.name}, Welcome to Healtcare Booking Scheduling App.`,
+            email: req.body.email,
+            message: `Hello ${req.body.name}, Welcome to Healthcare Booking Scheduling App.`
         };
-    
-        const lambdaResponse = await axios.post(
+
+        await axios.post(
             "https://ikb4u2ay5vn363ms3ttf7shuua0lonyq.lambda-url.us-east-1.on.aws/",
             appointmentConfirmation
         );
 
-        // If the patient is not found
-        if (patient === null) {
-            const { email, name, picture } = decoded;
-            const newPatient = new Patient({
-                googleId, email, name, picture
-            })
+        res.status(200).json({
+            message: 'Signup successful',
+            patient: {
+                id: savedPatient.googleId,
+                name: savedPatient.name,
+                email: savedPatient.email
+            }
+        });
 
-            const appointmentConfirmation = {
-                email: email, // Patient email passed in the request body
-                message: `Hello ${name}, Welcome to Healtcare Booking Scheduling App.`,
-            };
+    } catch (err) {
+        console.error('Signup Error:', err);
+        res.status(500).json({
+            message: 'Signup failed',
+            error: err.message
+        });
+    }
+});
+
+// router.route('/google-login').post(async (req, res) => {
+//     try {
+//         const tokenId = req.body.tokenId;
+//         // Fetch the key from Secrets Manager
+// 			const responseKey = await axios.post(
+// 				"https://znbd6w7rb7z57gvtrg44h2tq3i0tgjjk.lambda-url.us-east-1.on.aws/",
+// 				{ secretKey: "KEY" }
+// 			);
+
+//         const decoded = jwt.decode(tokenId, responseKey.data.value);
+//         const googleId = await decoded.sub;
+
+//         // Check if the user already exists in the database
+//         const patient = await Patient.findOne({ googleId: googleId });
+//         const appointmentConfirmation = {
+//             email: patient.email, // Patient email passed in the request body
+//             message: `Hello ${patient.name}, Welcome to Healtcare Booking Scheduling App.`,
+//         };
+    
+//         const lambdaResponse = await axios.post(
+//             "https://ikb4u2ay5vn363ms3ttf7shuua0lonyq.lambda-url.us-east-1.on.aws/",
+//             appointmentConfirmation
+//         );
+
+//         // If the patient is not found
+//         if (patient === null) {
+//             const { email, name, picture } = decoded;
+//             const newPatient = new Patient({
+//                 googleId, email, name, picture
+//             })
+
+//             const appointmentConfirmation = {
+//                 email: email, // Patient email passed in the request body
+//                 message: `Hello ${name}, Welcome to Healtcare Booking Scheduling App.`,
+//             };
         
-            const lambdaResponse = await axios.post(
-                "https://ikb4u2ay5vn363ms3ttf7shuua0lonyq.lambda-url.us-east-1.on.aws/",
-                appointmentConfirmation
-            );
+//             const lambdaResponse = await axios.post(
+//                 "https://ikb4u2ay5vn363ms3ttf7shuua0lonyq.lambda-url.us-east-1.on.aws/",
+//                 appointmentConfirmation
+//             );
 
-            const savedPromise = await newPatient.save();
-            if (savedPromise) {
-                return res.status(200).json({ phoneNumberExists: false });
-            }
-            else {
-                throw savedPromise;
-            }
+//             const savedPromise = await newPatient.save();
+//             if (savedPromise) {
+//                 return res.status(200).json({ phoneNumberExists: false });
+//             }
+//             else {
+//                 throw savedPromise;
+//             }
+//         }
+
+//         // If the phone number is not present in the database
+//         else if (patient.phoneNumber === undefined) {
+//             return res.status(200).json({ phoneNumberExists: false });
+//         }
+
+//         // Patient's phone number already exists in the database
+//         else {
+//             return res.status(200).json({ phoneNumberExists: true })
+//         }
+//     }
+//     catch (err) {
+//         console.log(err);
+//         return res.status(400).json(err);
+//     }
+// })
+
+router.route('/login').post(async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        // Fetch the password salt from Secrets Manager
+        const responseSalt = await axios.post(
+            "https://znbd6w7rb7z57gvtrg44h2tq3i0tgjjk.lambda-url.us-east-1.on.aws/",
+            { secretKey: "PASSWORD_SALT" }
+        );
+        const passwordSalt = responseSalt.data.value;
+
+        // Hash the incoming password with the salt
+        const hashedPassword = bcrypt.hash(password, passwordSalt);
+
+        // Find the user in the database
+        const patient = await Patient.findOne({ email });
+
+        if (!patient || patient.password !== hashedPassword) {
+            return res.status(401).json({ message: "Invalid email or password" });
         }
 
-        // If the phone number is not present in the database
-        else if (patient.phoneNumber === undefined) {
-            return res.status(200).json({ phoneNumberExists: false });
-        }
+        // Fetch the signing key and algorithm from Secrets Manager
+        const [responseKey, responseAlgorithm] = await Promise.all([
+            axios.post("https://znbd6w7rb7z57gvtrg44h2tq3i0tgjjk.lambda-url.us-east-1.on.aws/", { secretKey: "KEY" }),
+            axios.post("https://znbd6w7rb7z57gvtrg44h2tq3i0tgjjk.lambda-url.us-east-1.on.aws/", { secretKey: "ALGORITHM" }),
+        ]);
 
-        // Patient's phone number already exists in the database
-        else {
-            return res.status(200).json({ phoneNumberExists: true })
-        }
+        const signingKey = responseKey.data.value;
+        const algorithm = responseAlgorithm.data.value;
+
+        // Generate the JWT token
+        const token = jwt.sign(
+            { id: patient._id, email: patient.email },
+            signingKey,
+            { algorithm, expiresIn: "1h" }
+        );
+
+        return res.status(200).json({
+            message: "Login successful",
+            token : token,
+            googleId : patient.googleId
+        });
+    } catch (err) {
+        console.error("Login error:", err.message);
+        return res.status(500).json({ message: "Login failed", error: err.message });
     }
-    catch (err) {
-        console.log(err);
-        return res.status(400).json(err);
-    }
-})
+});
 
 router.route('/getPatientDetails/:googleId').get(async (req, res) => {
     try {

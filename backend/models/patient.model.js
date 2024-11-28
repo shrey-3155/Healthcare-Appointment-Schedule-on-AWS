@@ -19,7 +19,8 @@ const patientSchema = new Schema({
     },
     phoneNumber: {
         type: String
-    }
+    },
+    password: { type: String, required: true }
 });
 
 const Patient = mongoose.model('Patient', patientSchema);

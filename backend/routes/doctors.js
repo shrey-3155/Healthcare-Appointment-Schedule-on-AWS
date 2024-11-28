@@ -220,7 +220,7 @@ router.route("/book-slot").post(async (req, res) => {
 	const doctorId = req.body.doctorId; // Doctor's id 606460d2e0dd28cc76d9b0f3 
 	const slotId = req.body.slotId; // Id of that particular slot
 	const dateId = req.body.dateId; // Id of that particular date
-	const meetLink = "";
+	const meetLink = "https://meet.google.com/pgc-mfrv-wwk";
 
 	Doctor.findOne({ _id: doctorId }).then(async (doctor) => {
 		const date = doctor.dates.id(dateId);
