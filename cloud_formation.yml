@@ -36,7 +36,7 @@ Parameters:
   InstanceType:
     Description: Select instance type
     Type: String
-    Default: t2.small
+    Default: t2.medium
     AllowedValues:
         - t2.small
         - t2.micro
@@ -64,7 +64,6 @@ Parameters:
 
 Resources:
 
-    
     #VPC and Subnet
     MyVPC:
       Type: AWS::EC2::VPC
@@ -91,14 +90,14 @@ Resources:
       Properties:
         VpcId: !Ref MyVPC
         CidrBlock: 10.0.3.0/24
-        AvailabilityZone: !Select [ 0, !GetAZs "" ]
+        AvailabilityZone: !Select [ 1, !GetAZs "" ]
 
     PrivateSubnet2:
       Type: AWS::EC2::Subnet
       Properties:
         VpcId: !Ref MyVPC
         CidrBlock: 10.0.4.0/24
-        AvailabilityZone: !Select [ 0, !GetAZs "" ]
+        AvailabilityZone: !Select [ 2, !GetAZs "" ]
 
     InternetGateway:
       Type: AWS::EC2::InternetGateway
@@ -177,13 +176,13 @@ Resources:
         Description: "Secrets for Frontend and Backend applications"
         SecretString: !Sub |
           {
-            "REACT_APP_CLIENT_ID": "521254851329-0sk5ad8mmo3t9vnn380rknqtb45sopfv.apps.googleusercontent.com",
-            "REACT_APP_API_KEY": "AIzaSyBx0hYdK_P-fk_CLmmv8J7JMbP4aTMjbQM",
+            "REACT_APP_CLIENT_ID": "521254851329-6qck2421kubdhi21h6brsf6eisoqieqg.apps.googleusercontent.com",
+            "REACT_APP_API_KEY": "AIzaSyCUwDf05cdoiVgxJ4v9D2bXpBX4QyR7F5o",
             "REACT_APP_DISCOVERY_DOCS": "https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest",
             "REACT_APP_SCOPE":"https://www.googleapis.com/auth/calendar",
             "KEY":"SECRETKEY",
             "ALGORITHM":"HS256",
-            "CLIENT_ID":"521254851329-0sk5ad8mmo3t9vnn380rknqtb45sopfv.apps.googleusercontent.com",
+            "CLIENT_ID":"521254851329-6qck2421kubdhi21h6brsf6eisoqieqg.apps.googleusercontent.com",
             "PASSWORD_SALT":"my-password-salt"
           }
 
@@ -202,22 +201,23 @@ Resources:
             ToPort: 22
             CidrIp: 0.0.0.0/0
           - IpProtocol: tcp
-            FromPort: 8080
-            ToPort: 8080
+            FromPort: 3000
+            ToPort: 3000
             CidrIp: 0.0.0.0/0
 
-    MongoDBSecurityGroup:
+    ALBSecurityGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
-        GroupDescription: Allow MongoDB traffic
+        GroupDescription: Allow ALB traffic
         VpcId: !Ref MyVPC
         SecurityGroupIngress:
           - IpProtocol: tcp
-            FromPort: 27017
-            ToPort: 27017
+            FromPort: 5000
+            ToPort: 5000
+            SourceSecurityGroupId: !Ref FrontendSecurityGroup
         Tags:
           - Key: Name
-            Value: MongoDBSecurityGroup
+            Value: ALBSecurityGroup
 
     BackendSecurityGroup:
       Type: AWS::EC2::SecurityGroup
@@ -226,16 +226,18 @@ Resources:
         VpcId: !Ref MyVPC
         SecurityGroupIngress:
           - IpProtocol: tcp
-            FromPort: 8080
-            ToPort: 8080
+            FromPort: 5000
+            ToPort: 5000
+            SourceSecurityGroupId: !Ref ALBSecurityGroup
           - IpProtocol: tcp
-            FromPort: 27017
-            ToPort: 27017
+            FromPort: 22
+            ToPort: 22
+            CidrIp: 0.0.0.0/0
         Tags:
           - Key: Name
             Value: BackendSecurityGroup
 
-    # EC2 instance definition
+  # EC2 instance definition
     FrontendEC2Instance:
       Type: AWS::EC2::Instance
       Properties:
@@ -261,133 +263,171 @@ Resources:
               cd /Healthcare-Appointment-Schedule-on-AWS
               cd frontend/
               npm install --force;
-              echo "REACT_APP_SERVER_URL=http://${ElasticIP.PublicIp}:5000" | sudo tee -a .env
+              echo "REACT_APP_SERVER_URL=http://${BackendLoadBalancer.DNSName}:5000" | sudo tee -a .env
               npm start;
         Tags:
         - Key: Name
           Value: frontend-healthcare
 
-    BackendEC2Instance1:
-      Type: AWS::EC2::Instance
-      Properties:
-        InstanceType: !Ref InstanceType
-        KeyName: !Ref 'KeyName'
-        ImageId: ami-012967cc5a8c9f891
-        SubnetId: !Ref PrivateSubnet1
-        SecurityGroupIds:
-          - !Ref MongoDBSecurityGroup
-        UserData:
-          Fn::Base64:
-            !Sub |
-              sudo su - root
-              sudo yum update -y
-              sudo yum install gcc-c++ make -y
-              yum install -y git
-              curl -sL https://rpm.nodesource.com/setup_16.x | sudo bash -
-              sudo yum update -y
-              sudo yum install nodejs -y
-              echo "[mongodb-org-8.0]" | sudo tee /etc/yum.repos.d/mongodb-org-8.0.repo
-              echo "name=MongoDB Repository" | sudo tee -a /etc/yum.repos.d/mongodb-org-8.0.repo
-              echo "baseurl=https://repo.mongodb.org/yum/amazon/2023/mongodb-org/8.0/x86_64/" | sudo tee -a /etc/yum.repos.d/mongodb-org-8.0.repo
-              echo "gpgcheck=1" | sudo tee -a /etc/yum.repos.d/mongodb-org-8.0.repo
-              echo "enabled=1" | sudo tee -a /etc/yum.repos.d/mongodb-org-8.0.repo
-              echo "gpgkey=https://www.mongodb.org/static/pgp/server-8.0.asc" | sudo tee -a /etc/yum.repos.d/mongodb-org-8.0.repo
-              sudo yum install -y mongodb-org
-              sudo systemctl start mongod
-        Tags:
-          - Key: Name
-            Value: backend-healthcare1
-
     BackendEC2Instance2:
-      Type: AWS::EC2::Instance
+      Type: AWS::EC2::LaunchTemplate
       Properties:
-        InstanceType: !Ref InstanceType
-        KeyName: !Ref 'KeyName'
-        ImageId: ami-012967cc5a8c9f891
-        SubnetId: !Ref PrivateSubnet1
-        SecurityGroupIds:
-          - !Ref BackendSecurityGroup
-        UserData:
-          Fn::Base64:
-            !Sub |
-              sudo su - root
-              sudo yum update -y
-              sudo yum install gcc-c++ make -y
-              yum install -y git
-              curl -sL https://rpm.nodesource.com/setup_16.x | sudo bash -
-              sudo yum update -y
-              sudo yum install nodejs -y
-              git clone https://github.com/shrey-3155/Healthcare-Appointment-Schedule-on-AWS.git
-              sudo su - root
-              cd /Healthcare-Appointment-Schedule-on-AWS
-              cd backend/
-              npm install;
-              sudo yum install -y jq
-              echo "PORT=5000" | sudo tee -a .env
-              echo "ATLAS_URI=mongodb://localhost:27107" | sudo tee -a .env
-              echo "ATLAS_URI_TEST=mongodb+srv://username:password@cluster0.mongodb.net/testdatabase?retryWrites=true&w=majority" | sudo tee -a .env
-              echo "NODE_ENV=dev" | sudo tee -a .env
-              npm start;
+        LaunchTemplateData:
+          InstanceType: !Ref InstanceType
+          KeyName: !Ref 'KeyName'
+          ImageId: ami-012967cc5a8c9f891
+          NetworkInterfaces:
+            - AssociatePublicIpAddress: false
+              DeviceIndex: 0
+              SubnetId: !Ref PublicSubnet1
+              Groups:
+                - !Ref BackendSecurityGroup
+          UserData:
+            Fn::Base64:
+              !Sub |
+              #!/bin/bash                          
+                sudo su - root
+                sudo yum update -y
+                sudo yum install gcc-c++ make -y
+                yum install -y git
+                curl -sL https://rpm.nodesource.com/setup_16.x | sudo bash -
+                sudo yum update -y
+                sudo yum install nodejs -y
+                echo "[mongodb-org-8.0]" | sudo tee /etc/yum.repos.d/mongodb-org-8.0.repo
+                echo "name=MongoDB Repository" | sudo tee -a /etc/yum.repos.d/mongodb-org-8.0.repo
+                echo "baseurl=https://repo.mongodb.org/yum/amazon/2023/mongodb-org/8.0/x86_64/" | sudo tee -a /etc/yum.repos.d/mongodb-org-8.0.repo
+                echo "gpgcheck=1" | sudo tee -a /etc/yum.repos.d/mongodb-org-8.0.repo
+                echo "enabled=1" | sudo tee -a /etc/yum.repos.d/mongodb-org-8.0.repo
+                echo "gpgkey=https://www.mongodb.org/static/pgp/server-8.0.asc" | sudo tee -a /etc/yum.repos.d/mongodb-org-8.0.repo
+                sudo yum install -y mongodb-org
+                sudo systemctl start mongod
+                git clone https://github.com/shrey-3155/Healthcare-Appointment-Schedule-on-AWS.git
+                sudo su - root
+                cd Healthcare-Appointment-Schedule-on-AWS/
+                cd backend/
+                npm install --force;
+                echo "PORT=5000" | sudo tee -a .env
+                echo "ATLAS_URI=mongodb://localhost:27017" | sudo tee -a .env
+                echo "ATLAS_URI_TEST=mongodb+srv://username:password@cluster0.mongodb.net/testdatabase?retryWrites=true&w=majority" | sudo tee -a .env
+                echo "NODE_ENV=dev" | sudo tee -a .env
+                npm start;
+
+    #Auto Scaling
+      # Auto Scaling Group Definition
+    MyAutoScalingGroup:
+      Type: 'AWS::AutoScaling::AutoScalingGroup'
+      Properties:
+        MinSize: '1'
+        MaxSize: '3'
+        DesiredCapacity: '1'
+        LaunchTemplate:
+          LaunchTemplateId: !Ref BackendEC2Instance2
+          Version: !GetAtt BackendEC2Instance2.LatestVersionNumber
         Tags:
           - Key: Name
-            Value: backend-healthcare2
+            Value: healthcare-appointment
+            PropagateAtLaunch: true
+        VPCZoneIdentifier:
+          - !Ref PrivateSubnet1
+        TargetGroupARNs:
+          - !Ref BackendTargetGroup
 
-    #Load Balancer Setup for backend
-#  # Security Group for the Load Balancer
-#    LoadBalancerSecurityGroup:
-#      Type: AWS::EC2::SecurityGroup
-#      Properties:
-#        GroupDescription: Allow HTTP access for Load Balancer
-#        VpcId: !Ref MyVPC
-#        SecurityGroupIngress:
-#          - IpProtocol: tcp
-#            FromPort: 80
-#            ToPort: 80
-#            CidrIp: 0.0.0.0/0
-#
-#  # Application Load Balancer
-#    ApplicationLoadBalancer:
-#      Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-#      Properties:
-#        Name: BackendALB
-#        Scheme: internet-facing
-#        Subnets:
-#          - !Ref PublicSubnet1
-#        SecurityGroups:
-#          - !Ref LoadBalancerSecurityGroup
-#        Type: application
-#        Tags:
-#          - Key: Name
-#            Value: BackendLoadBalancer
-#
-#  # Target Group for Backend Instances
-#    BackendTargetGroup:
-#      Type: AWS::ElasticLoadBalancingV2::TargetGroup
-#      Properties:
-#        Name: BackendTargetGroup
-#        Protocol: HTTP
-#        Port: 8080
-#        VpcId: !Ref MyVPC
-#        TargetType: instance
-#        HealthCheckProtocol: HTTP
-#        HealthCheckPort: 8080
-#        HealthCheckPath: /
-#        Matcher:
-#          HttpCode: 200
-#        Targets:
-#          - Id: !Ref BackendEC2Instance1
-#          - Id: !Ref BackendEC2Instance2
-#
-#  # Listener for the Application Load Balancer
-#    ALBListener:
-#      Type: AWS::ElasticLoadBalancingV2::Listener
-#      Properties:
-#        DefaultActions:
-#          - Type: forward
-#            TargetGroupArn: !Ref BackendTargetGroup
-#        LoadBalancerArn: !Ref ApplicationLoadBalancer
-#        Port: 80
-#        Protocol: HTTP
+
+  # Auto Scaling Policy to Scale Out Definition
+    MyScaleOutPolicy:
+      Type: 'AWS::AutoScaling::ScalingPolicy'
+      Properties:
+        AdjustmentType: ChangeInCapacity
+        AutoScalingGroupName: !Ref MyAutoScalingGroup
+        Cooldown: 300
+        PolicyType: SimpleScaling
+        ScalingAdjustment: 1
+
+  # Auto Scaling Policy to Scale In Definition
+    MyScaleInPolicy:
+      Type: 'AWS::AutoScaling::ScalingPolicy'
+      Properties:
+        AdjustmentType: ChangeInCapacity
+        AutoScalingGroupName: !Ref MyAutoScalingGroup
+        Cooldown: 300
+        PolicyType: SimpleScaling
+        ScalingAdjustment: -1
+
+  # CloudWatch Alarm to Trigger Scale Out Definition
+    MyScaleOutAlarm:
+      Type: 'AWS::CloudWatch::Alarm'
+      Properties:
+        AlarmDescription: 'Alarm to scale out when average CPU utilization exceeds 70%'
+        AlarmActions:
+          - !Ref MyScaleOutPolicy
+        ComparisonOperator: GreaterThanThreshold
+        Dimensions:
+          - Name: AutoScalingGroupName
+            Value: !Ref MyAutoScalingGroup
+        EvaluationPeriods: '1'
+        MetricName: CPUUtilization
+        Namespace: AWS/EC2
+        Period: '300'
+        Statistic: Average
+        Threshold: '70'
+
+  # CloudWatch Alarm to Trigger Scale In Definition
+    MyScaleInAlarm:
+      Type: 'AWS::CloudWatch::Alarm'
+      Properties:
+        AlarmDescription: 'Alarm to scale in when average CPU utilization falls below 30%'
+        AlarmActions:
+          - !Ref MyScaleInPolicy
+        ComparisonOperator: LessThanThreshold
+        Dimensions:
+          - Name: AutoScalingGroupName
+            Value: !Ref MyAutoScalingGroup
+        EvaluationPeriods: '1'
+        MetricName: CPUUtilization
+        Namespace: AWS/EC2
+        Period: '300'
+        Statistic: Average
+        Threshold: '30'
+
+  #Load Balancer Setup for backend
+    BackendLoadBalancer:
+      Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+      Properties:
+        Name: BackendLoadBalancer
+        Scheme: internal
+        Subnets:
+          - !Ref PublicSubnet1
+          - !Ref PrivateSubnet2
+          - !Ref PrivateSubnet1
+        SecurityGroups:
+          - !Ref ALBSecurityGroup
+        Tags:
+          - Key: Name
+            Value: backend-load-balancer
+
+    BackendTargetGroup:
+      Type: AWS::ElasticLoadBalancingV2::TargetGroup
+      Properties:
+        Name: BackendTargetGroup
+        Port: 5000
+        Protocol: HTTP
+        VpcId: !Ref MyVPC
+        TargetType: instance
+        HealthCheckPath: /
+        Tags:
+          - Key: Name
+            Value: backend-target-group
+
+    BackendListener:
+      Type: AWS::ElasticLoadBalancingV2::Listener
+      Properties:
+        LoadBalancerArn: !Ref BackendLoadBalancer
+        Port: 5000
+        Protocol: HTTP
+        DefaultActions:
+          - Type: forward
+            TargetGroupArn: !Ref BackendTargetGroup
+
 Outputs:
   BlogNotificationTopicArn:
     Description: The ARN of the SNS Topic for healthcare notifications
@@ -398,6 +438,12 @@ Outputs:
     Value: !GetAtt ElasticIP.PublicIp
     Export:
       Name: NATGatewayElasticIP
+
+#  EC2PrivateIp:
+#    Description: Public Elastic IP address associated with the NAT Gateway
+#    Value: !GetAtt BackendEC2Instance2.PrivateIp
+#    Export:
+#      Name: EC2PrivateIp
       
   ApplicationURL:
     Description: The URL of the deployed application
