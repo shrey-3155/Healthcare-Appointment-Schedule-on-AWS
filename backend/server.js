@@ -5,6 +5,9 @@ const mongoose = require('mongoose');
 const patientsRouter = require('./routes/patients');
 const doctorsRotuer = require('./routes/doctors');
 const appointmentRouter = require('./routes/appointments');
+const doctors = require("./models/doctor.model");
+const { Doctor, Slot, DateSchedule } = doctors;
+
 require('dotenv').config();
  
 app.use(express.json());
@@ -30,6 +33,83 @@ mongoose.connect(uri, { useNewUrlParser: true, useCreateIndex: true, useUnifiedT
     }
 });
 
+// Function to seed database with fixed doctors
+async function seedDatabase() {
+    const fixedDoctors = [
+        {
+            username: "doctor1",
+            password: "password123",
+            name: "Dr. John Smith",
+            email: "johnsmith@example.com",
+            phoneNumber: "1234567890",
+            specialization: "Cardiology",
+            feesPerSession: "100",
+            dates: [
+                {
+                    date: "2024-11-12",
+                    slots: [
+                        { time: "09:00", isBooked: false },
+                        { time: "10:00", isBooked: false },
+                        { time: "11:00", isBooked: false }
+                    ]
+                }
+            ]
+        },
+        {
+            username: "doctor2",
+            password: "password456",
+            name: "Dr. Alice Brown",
+            email: "alicebrown@example.com",
+            phoneNumber: "0987654321",
+            specialization: "Dermatology",
+            feesPerSession: "80",
+            dates: [
+                {
+                    date: "2024-11-12",
+                    slots: [
+                        { time: "13:00", isBooked: false },
+                        { time: "14:00", isBooked: false },
+                        { time: "15:00", isBooked: false }
+                    ]
+                }
+            ]
+        },
+        {
+            username: "spatel",
+            password: "Shrey@3155",
+            name: "Dr. Shrey patel",
+            email: "snp3155@gmail.com",
+            phoneNumber: "1234567890",
+            specialization: "NeuroSurgeon",
+            feesPerSession: "800",
+            dates: [
+                {
+                    date: "2024-11-12",
+                    slots: [
+                        { time: "09:00", isBooked: false },
+                        { time: "10:00", isBooked: false },
+                        { time: "11:00", isBooked: false }
+                    ]
+                }
+            ]
+        },
+    ];
+
+    try {
+        for (const doctor of fixedDoctors) {
+            const existingDoctor = await Doctor.findOne({ username: doctor.username });
+            if (!existingDoctor) {
+                await Doctor.create(doctor);
+                console.log(`Added doctor: ${doctor.name}`);
+            } else {
+                console.log(`Doctor already exists: ${doctor.name}`);
+            }
+        }
+    } catch (err) {
+        console.error("Error seeding database:", err);
+    }
+}
+
 function getCurrentTime() {
     const date = new Date()
     console.log(date)
@@ -43,11 +123,13 @@ function getEndDateTime(dateTime) {
     return date + 'T' + time
 }
 
-app.listen(port, () => {
+app.listen(port, async () => {
     console.log(`Listening on port ${port}`)
     console.log(`NODE_ENV = ${process.env.NODE_ENV}`)
     getCurrentTime()
     getEndDateTime("2021-03-22T09:00:00")
+    await seedDatabase();
+
 })
 
 app.get('/', (req, res) => {
