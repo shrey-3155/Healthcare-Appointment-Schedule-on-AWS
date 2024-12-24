@@ -1,8 +1,79 @@
 ## healthcare-appointment-scheduling-app
 
-**Frontend**- https://healthcarebooking.netlify.app/
+## Overview
+The **Healthcare Appointment Scheduling Application** is a MERN stack-based web application that enables seamless interaction between doctors and patients. This application facilitates appointment booking, payments, notifications, and virtual consultations. It is hosted on AWS, leveraging various services to ensure scalability, security, and high availability.
 
-**Backend** - https://healthcare-appointment-scheduling-app.onrender.com
+## Features
+### **1. User Roles**
+- **Patients**:
+    - Sign in via Google accounts.
+    - View available doctors with their fees, availability, and specializations.
+    - Book appointments and process payments through Stripe.
+    - Receive Google Meet links and email notifications for booked appointments.
+- **Doctors**:
+    - Register and log in to view their appointment schedules.
+    - Receive notifications and meeting links for their upcoming appointments.
+
+### **2. Key Functionalities**
+- **User Authentication**:
+    - Patients authenticate using Google accounts.
+    - Doctors register in the system for access.
+- **Appointment Booking**:
+    - Patients can view available time slots and book appointments.
+    - Automated calendar events are created with meeting links for consultations.
+- **Feedback System**:
+    - Patients provide feedback about their consultation experience.
+- **JWT Authentication**:
+    - Secure communication between client and server using JSON Web Tokens (JWT).
+- **Payment Integration**:
+    - Stripe integration for secure and seamless payments.
+
+## Tech Stack
+- **Frontend**: React.js for a dynamic user interface.
+- **Backend**: Node.js and Express.js for server-side operations.
+- **Database**: MongoDB for document storage.
+
+## Hosting on AWS
+The application is deployed on AWS, utilizing various services to ensure efficiency and reliability.
+
+### **AWS Services Used**
+| **Service Category**         | **AWS Service**                  |
+|-------------------------------|-----------------------------------|
+| Compute                      | Amazon EC2, Auto Scaling, Lambda |
+| Storage                      | Amazon S3                        |
+| Networking & Content Delivery | Amazon VPC, Elastic Load Balancer |
+| Application Integration      | Amazon SNS                       |
+| Management & Governance      | AWS CloudFormation, CloudWatch   |
+| Security, Identity, & Compliance | AWS Secrets Manager           |
+
+### **Deployment Links**
+- **Frontend EC2 Elastic IP**: [http://34.192.38.100](http://34.192.38.100)  
+  *(Note: The instance stops when the lab session ends. Refer to the screenshots provided below.)*
+
+### **Architecture Diagram**
+- [Cloud Architecture Diagram](FinalCloudArchitecture.drawio.png)
+
+## AWS Services Justification
+### **Compute Services**
+- **Amazon EC2**: Used for hosting the frontend and backend, offering flexibility and scalability.
+- **Auto Scaling**: Automatically adjusts the number of backend EC2 instances based on demand.
+- **AWS Lambda**: Executes serverless functions, such as handling feedback and notifications.
+
+### **Storage Services**
+- **Amazon S3**: Stores user profile images and frontend assets securely and reliably.
+
+### **Networking**
+- **Amazon VPC**: Ensures secure and isolated networking for the application.
+- **Elastic Load Balancer (ALB)**: Distributes traffic evenly across backend EC2 instances.
+
+### **Security**
+- **AWS Secrets Manager**: Securely stores sensitive information like JWT keys and password salts.
+
+### **Notifications**
+- **Amazon SNS**: Sends email notifications for events like appointments, login, and signup.
+
+### **Infrastructure Management**
+- **AWS CloudFormation**: Automates the provisioning and management of the application infrastructure.
 
 ## Patient Guide: 
 
