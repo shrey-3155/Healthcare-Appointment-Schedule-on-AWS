@@ -36,7 +36,7 @@ Parameters:
   InstanceType:
     Description: Select instance type
     Type: String
-    Default: t2.medium
+    Default: t2.small
     AllowedValues:
         - t2.small
         - t2.micro
@@ -84,20 +84,27 @@ Resources:
         MapPublicIpOnLaunch: true
         AvailabilityZone: !Select [ 0, !GetAZs "" ]
 
+    PublicSubnet2:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref MyVPC
+        CidrBlock: 10.0.2.0/24
+        MapPublicIpOnLaunch: true
+        AvailabilityZone: !Select [ 1, !GetAZs "" ]
 
     PrivateSubnet1:
       Type: AWS::EC2::Subnet
       Properties:
         VpcId: !Ref MyVPC
         CidrBlock: 10.0.3.0/24
-        AvailabilityZone: !Select [ 1, !GetAZs "" ]
+        AvailabilityZone: !Select [ 0, !GetAZs "" ]
 
     PrivateSubnet2:
       Type: AWS::EC2::Subnet
       Properties:
         VpcId: !Ref MyVPC
         CidrBlock: 10.0.4.0/24
-        AvailabilityZone: !Select [ 2, !GetAZs "" ]
+        AvailabilityZone: !Select [ 1, !GetAZs "" ]
 
     InternetGateway:
       Type: AWS::EC2::InternetGateway
@@ -120,10 +127,16 @@ Resources:
         DestinationCidrBlock: 0.0.0.0/0
         GatewayId: !Ref InternetGateway
 
-    PublicSubnetRouteTableAssociation:
+    PublicSubnet1RouteTableAssociation:
       Type: AWS::EC2::SubnetRouteTableAssociation
       Properties:
         SubnetId: !Ref PublicSubnet1
+        RouteTableId: !Ref PublicRouteTable
+
+    PublicSubnet2RouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        SubnetId: !Ref PublicSubnet2
         RouteTableId: !Ref PublicRouteTable
 
     PrivateRouteTable:
@@ -162,11 +175,6 @@ Resources:
         SubnetId: !Ref PublicSubnet1
 
 
-     ## SNS Topic for Blog Notifications
-    AppointmentNotificationTopic:
-      Type: AWS::SNS::Topic
-      Properties:
-        TopicName: AppointmentNotificationTopic
 
     ##Secrets Manager
     MySecret:
@@ -176,13 +184,13 @@ Resources:
         Description: "Secrets for Frontend and Backend applications"
         SecretString: !Sub |
           {
-            "REACT_APP_CLIENT_ID": "521254851329-6qck2421kubdhi21h6brsf6eisoqieqg.apps.googleusercontent.com",
-            "REACT_APP_API_KEY": "AIzaSyCUwDf05cdoiVgxJ4v9D2bXpBX4QyR7F5o",
-            "REACT_APP_DISCOVERY_DOCS": "https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest",
-            "REACT_APP_SCOPE":"https://www.googleapis.com/auth/calendar",
+            "REACT_APP_CLIENT_ID": "ABC",
+            "REACT_APP_API_KEY": "ABC",
+            "REACT_APP_DISCOVERY_DOCS": "ABC",
+            "REACT_APP_SCOPE":"ABC",
             "KEY":"SECRETKEY",
             "ALGORITHM":"HS256",
-            "CLIENT_ID":"521254851329-6qck2421kubdhi21h6brsf6eisoqieqg.apps.googleusercontent.com",
+            "CLIENT_ID":"XYZ",
             "PASSWORD_SALT":"my-password-salt"
           }
 
@@ -214,7 +222,15 @@ Resources:
           - IpProtocol: tcp
             FromPort: 5000
             ToPort: 5000
-            SourceSecurityGroupId: !Ref FrontendSecurityGroup
+            CidrIp: 0.0.0.0/0
+          - IpProtocol: tcp
+            FromPort: 22
+            ToPort: 22
+            CidrIp: 0.0.0.0/0
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 0.0.0.0/0
         Tags:
           - Key: Name
             Value: ALBSecurityGroup
@@ -222,16 +238,20 @@ Resources:
     BackendSecurityGroup:
       Type: AWS::EC2::SecurityGroup
       Properties:
-        GroupDescription: Allow traffic from frontend and MongoDB
+        GroupDescription: Allow traffic from frontend and LoadBalancer
         VpcId: !Ref MyVPC
         SecurityGroupIngress:
           - IpProtocol: tcp
-            FromPort: 5000
-            ToPort: 5000
-            SourceSecurityGroupId: !Ref ALBSecurityGroup
-          - IpProtocol: tcp
             FromPort: 22
             ToPort: 22
+            CidrIp: 0.0.0.0/0
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 0.0.0.0/0
+          - IpProtocol: tcp
+            FromPort: 5000
+            ToPort: 5000
             CidrIp: 0.0.0.0/0
         Tags:
           - Key: Name
@@ -263,7 +283,7 @@ Resources:
               cd /Healthcare-Appointment-Schedule-on-AWS
               cd frontend/
               npm install --force;
-              echo "REACT_APP_SERVER_URL=http://${BackendLoadBalancer.DNSName}:5000" | sudo tee -a .env
+              echo "REACT_APP_SERVER_URL=http://${BackendLoadBalancer.DNSName}" | sudo tee -a .env
               npm start;
         Tags:
         - Key: Name
@@ -277,9 +297,9 @@ Resources:
           KeyName: !Ref 'KeyName'
           ImageId: ami-012967cc5a8c9f891
           NetworkInterfaces:
-            - AssociatePublicIpAddress: false
-              DeviceIndex: 0
-              SubnetId: !Ref PublicSubnet1
+            - DeviceIndex: 0
+              AssociatePublicIpAddress: true
+              SubnetId: !Ref PrivateSubnet1
               Groups:
                 - !Ref BackendSecurityGroup
           UserData:
@@ -320,6 +340,7 @@ Resources:
         MinSize: '1'
         MaxSize: '3'
         DesiredCapacity: '1'
+        HealthCheckType: ELB
         LaunchTemplate:
           LaunchTemplateId: !Ref BackendEC2Instance2
           Version: !GetAtt BackendEC2Instance2.LatestVersionNumber
@@ -329,6 +350,7 @@ Resources:
             PropagateAtLaunch: true
         VPCZoneIdentifier:
           - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
         TargetGroupARNs:
           - !Ref BackendTargetGroup
 
@@ -394,11 +416,12 @@ Resources:
       Type: AWS::ElasticLoadBalancingV2::LoadBalancer
       Properties:
         Name: BackendLoadBalancer
-        Scheme: internal
+        Scheme: internet-facing
+        IpAddressType: ipv4
+        Type: application
         Subnets:
+          - !Ref PublicSubnet2
           - !Ref PublicSubnet1
-          - !Ref PrivateSubnet2
-          - !Ref PrivateSubnet1
         SecurityGroups:
           - !Ref ALBSecurityGroup
         Tags:
@@ -413,6 +436,8 @@ Resources:
         Protocol: HTTP
         VpcId: !Ref MyVPC
         TargetType: instance
+        HealthCheckIntervalSeconds: 60
+        HealthCheckTimeoutSeconds: 20
         HealthCheckPath: /
         Tags:
           - Key: Name
@@ -422,29 +447,35 @@ Resources:
       Type: AWS::ElasticLoadBalancingV2::Listener
       Properties:
         LoadBalancerArn: !Ref BackendLoadBalancer
-        Port: 5000
+        Port: 80
         Protocol: HTTP
         DefaultActions:
           - Type: forward
             TargetGroupArn: !Ref BackendTargetGroup
 
+    #Elastic Ip
+    FrontendElasticIP:
+      Type: AWS::EC2::EIP
+      Properties:
+        Domain: vpc
+
+    FrontendEIPAssociation:
+      Type: AWS::EC2::EIPAssociation
+      Properties:
+        AllocationId: !GetAtt FrontendElasticIP.AllocationId
+        InstanceId: !Ref FrontendEC2Instance
+
+
 Outputs:
-  BlogNotificationTopicArn:
-    Description: The ARN of the SNS Topic for healthcare notifications
-    Value: !Ref AppointmentNotificationTopic
 
-  NATGatewayElasticIP:
-    Description: Public Elastic IP address associated with the NAT Gateway
-    Value: !GetAtt ElasticIP.PublicIp
-    Export:
-      Name: NATGatewayElasticIP
+  FrontendElasticIP:
+    Description: Elastic IP address of the frontend application
+    Value: !Ref FrontendElasticIP
 
-#  EC2PrivateIp:
-#    Description: Public Elastic IP address associated with the NAT Gateway
-#    Value: !GetAtt BackendEC2Instance2.PrivateIp
-#    Export:
-#      Name: EC2PrivateIp
-      
+  FrontendDeployedLink:
+    Description: The URL of the deployed application
+    Value: !Sub "http://${FrontendElasticIP}:3000"
+
   ApplicationURL:
     Description: The URL of the deployed application
     Value: !Join
